@@ -1,16 +1,16 @@
-# Working on ios-sweet
+# Working on ios-miatoll
 
-- Read `NOTES.md` before starting; it contains the project goal, hardware facts,
-  current blocker, local artifact locations and the next concrete action.
-- The user switches agents frequently. Update the active handoff in `NOTES.md`
-  after each milestone and before stopping. Record commits, CI run IDs, exact
-  build/boot results and unfinished work. Distinguish observations from guesses.
-- Commit completed changes. Use `gh` for GitHub Actions kernel builds and logs.
-  Local single-file cross-compiles are useful before spending a CI run.
-- Device bring-up uses temporary `fastboot boot` images. Preserve the Android
-  installation and partition backups. The user approved (2026-10-15) using
-  internal UFS for iOS and said Android may be deleted: the iOS root goes
-  into the existing `userdata` partition (no GPT changes). Keep bootloaders,
-  recovery, modem, persist and the backups intact, and confirm each
-  destructive step with the user before running it.
-- Keep device dumps, serial numbers and downloaded Apple artifacts out of git.
+- Read `README.md`, then `NOTES.md` (hardware facts, the engineering log, one entry per patch) and `RESEARCH.md` (where
+  each missing feature stands and which reference port already solves it).
+- Record each milestone in `NOTES.md`, newest first, with the kernel number or patch, the boot args, exact results and
+  what is still open. Keep observations apart from guesses. A new kernel patch is one line in the patch list too.
+- Kernel changes go through GitHub Actions: add `xnu/patches/NNNN-*.patch`, push to `main`, `gh workflow run xnu.yml`,
+  then `gh run download -n xnu-kernel`. `tools/xnu-cc.py` replays a single compile command from a previous CI log before
+  spending a run.
+- Device bring-up uses temporary `fastboot boot` images. The iOS root occupies `userdata` (which erases Android's data,
+  with the user's explicit OK each time); the bootloader, recovery, modem, persist and the partition backups stay
+  untouched. Confirm every destructive step with the user before running it. `RECOVERY.md` restores stock Android.
+- Keep out of git: partition dumps, device trees and logs from a phone (serials, IMEI, network names), Apple's files
+  (IPSW parts, the root image, shared cache, kernelcache) and firmware pulled from the phone's modem partition.
+- Root-image work: never mount HFS+ without `-mountOptions owners`, and never attach the IPSW DMGs without `-owners on`.
+  Both silently discard or misread ownership and produce an image that cannot boot; `root-finalize.sh` checks for it.

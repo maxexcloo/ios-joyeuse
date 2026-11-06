@@ -8,3 +8,12 @@ shim/out/
 xnu/out/
 xnu/out-*/
 __pycache__/
+
+# miatoll: stock boot.img, IPSW parts, root images and boot images built by tools/
+out/
+ipsw/
+backups/
+logs/
+*.simg
+*.ipsw
+*.dmg
