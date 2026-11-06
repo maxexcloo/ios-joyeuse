@@ -52,6 +52,7 @@ at `0x9c000000`, keeps a persistent 4 MiB log ring at the end of `userdata`, and
 | `xnu/patches/` | 0001-0103, applied in order ([how to build and add one](xnu/README.md)) |
 | `shim/` | The bare-metal shim ABL boots |
 | `tools/` | Host tools: device tree, payload, root images, boot image, the phone loop |
+| [HANDOFF.md](HANDOFF.md) | Current state and the next concrete steps |
 | [INSTALL.md](INSTALL.md) | Getting it onto a phone, step by step |
 | [RECOVERY.md](RECOVERY.md) | Back to Android, and reading the log from recovery |
 | [RESEARCH.md](RESEARCH.md) | Where each missing feature stands, and which port already solves it |
