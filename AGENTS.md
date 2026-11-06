@@ -1,11 +1,10 @@
 # Working on ios-miatoll
 
-- Read `HANDOFF.md` first (current state, next steps, what will bite), then `README.md`. `NOTES.md` is the upstream
-  engineering log, one entry per patch; `RESEARCH.md` says where each missing feature stands and which reference port
-  already solves it.
-- Record each milestone at the top of `HANDOFF.md`, with the kernel number or patch, the boot args, exact results and
-  what is still open. Keep `README.md`'s "What works" table in step with it,
-  and observations apart from guesses. A new kernel patch is one line in the patch list too.
+- Read `README.md` first (what works, what does not), then `RESEARCH.md` (where each missing feature stands). `NOTES.md`
+  is the upstream engineering log, one entry per patch.
+- Record each milestone at the top of `NOTES.md`, with the kernel number or patch, the boot args, exact results and what
+  is still open. Keep `README.md`'s "What works" table in step with it, and observations apart from guesses. A new kernel
+  patch is one line in the patch list too.
 - Kernel changes go through GitHub Actions: add `xnu/patches/NNNN-*.patch`, push to `main`, `gh workflow run xnu.yml`,
   then `gh run download -n xnu-kernel`. `tools/xnu-cc.py` replays a single compile command from a previous CI log before
   spending a run.
