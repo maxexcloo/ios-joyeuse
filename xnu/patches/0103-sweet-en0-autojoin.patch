@@ -27,7 +27,7 @@ index aee5a6c..7abae8a 100644
  
  extern "C" vm_offset_t ml_io_map(vm_offset_t phys_addr, vm_size_t size);
  
-@@ -5067,6 +5085,235 @@ topaz_wlan_joined(void)
+@@ -5067,6 +5085,239 @@ topaz_wlan_joined(void)
  	return s_state == S_UP;
  }
  
@@ -67,10 +67,13 @@ index aee5a6c..7abae8a 100644
 +wl_ioctl(ifnet_t ifp, u_long cmd, void *data)
 +{
 +	switch (cmd) {
-+	case SIOCSIFADDR:                    /* feth: configd's way of bringing it up */
++	case SIOCSIFADDR:
++	case SIOCAIFADDR:                    /* feth: configd's way of bringing it up */
 +		(void)ifnet_set_flags(ifp, IFF_UP, IFF_UP);
 +		return 0;
 +	case SIOCSIFFLAGS:                   /* dlil notifies with data == NULL */
++	case SIOCADDMULTI:                   /* nothing to program; accept anyway */
++	case SIOCDELMULTI:
 +		return 0;
 +	case SIOCGIFMEDIA32:
 +	case SIOCGIFMEDIA64: {
@@ -90,7 +93,8 @@ index aee5a6c..7abae8a 100644
 +		return 0;
 +	}
 +	default:
-+		return 0;
++		/* Same as the proven ue0 driver: an unknown ioctl is not a success. */
++		return EOPNOTSUPP;
 +	}
 +}
 +
@@ -164,6 +168,9 @@ index aee5a6c..7abae8a 100644
 +	(void)ifnet_set_flags(ifp, IFF_BROADCAST | IFF_MULTICAST | IFF_SIMPLEX, 0xffff);
 +	(void)ifnet_set_hdrlen(ifp, (u_int16_t)sizeof(struct ether_header));
 +	(void)ifnet_set_offload(ifp, 0);
++	uint8_t mac[6];
++	topaz_wlan_address(mac);
++	(void)ifnet_set_lladdr(ifp, mac, sizeof(mac));
 +	err = ifnet_attach(ifp, NULL);
 +	if (err != 0) {
 +		LOG("wifi: en0 attach failed %d", err);
@@ -171,9 +178,6 @@ index aee5a6c..7abae8a 100644
 +		return;
 +	}
 +	wl_ifp = ifp;
-+	uint8_t mac[6];
-+	topaz_wlan_address(mac);
-+	(void)ifnet_set_lladdr(ifp, mac, sizeof(mac));
 +	bpfattach(ifp, DLT_EN10MB, (u_int)sizeof(struct ether_header));
 +	LOG("wifi: en0 created, mac %02x:%02x:%02x:%02x:%02x:%02x",
 +	    mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
@@ -263,7 +267,7 @@ index aee5a6c..7abae8a 100644
  /* frames from the network stack wait here for the modem thread */
  #define ETXQ 32
  static struct { uint16_t len; uint8_t d[1514]; } etxq[ETXQ];
-@@ -5578,6 +5825,17 @@ topaz_modem_init(void)
+@@ -5578,6 +5829,17 @@ topaz_modem_init(void)
  		return;
  	}
  	started = true;
