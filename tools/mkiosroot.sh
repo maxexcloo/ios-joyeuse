@@ -26,7 +26,7 @@ work=$(mktemp -d)
 mounts=()
 cleanup() {
 	local busy=0
-	for m in "${mounts[@]}"; do
+	for m in ${mounts[@]+"${mounts[@]}"}; do
 		if mountpoint -q "$m"; then
 			sudo umount "$m" 2>/dev/null || true
 		fi
@@ -60,7 +60,7 @@ truncate -s "$size" "$out"
 mkfs.hfsplus -s -J -v iOSRoot "$out"
 mkdir "$work/root"
 sudo mount -t hfsplus -o loop,force "$out" "$work/root"
-mounts=("$work/root" "${mounts[@]}")
+mounts=("$work/root" ${mounts[@]+"${mounts[@]}"})
 
 copy() {
 	echo "copying $1 -> ${2#"$work/root"}"

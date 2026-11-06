@@ -36,9 +36,34 @@ fi
 ifconfig "$iface" | grep -E "inet |ether " >&2
 
 echo "listening on udp/5140 — Ctrl-C to stop" >&2
-# -k: keep listening across the phone's sender restarting.
-if [ -n "$log" ]; then
-	nc -ukl 5140 | tee -a "$log"
-else
-	nc -ukl 5140
-fi
+# Do NOT use `nc -ukl 5140` here. macOS's nc binds the socket to the first
+# source address it sees (connect() on a datagram listener) and silently drops
+# everything from any other sender: after a panic, a reboot, or the kernel's
+# UDP sender being recreated, the capture just stops with no error. That is
+# exactly the crash case this script exists for. A plain recvfrom loop takes
+# datagrams from any sender, so the log survives a restart.
+exec python3 -u - "$log" <<'PY'
+import socket, sys, time
+
+path = sys.argv[1] if len(sys.argv) > 1 else ""
+out = open(path, "ab", buffering=0) if path else sys.stdout.buffer
+s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+s.bind(("0.0.0.0", 5140))
+last = time.time()
+while True:
+    s.settimeout(5.0)
+    try:
+        data, addr = s.recvfrom(65535)
+    except socket.timeout:
+        # Say so while waiting: a silent 30 s gap is indistinguishable from a
+        # hung phone, which is the one thing a live log must never look like.
+        if time.time() - last > 30:
+            out.write(b"[livelog: no packets for 30 s]\n")
+            last = time.time()
+        continue
+    out.write(data)
+    if not data.endswith(b"\n"):
+        out.write(b"\n")
+    last = time.time()
+PY

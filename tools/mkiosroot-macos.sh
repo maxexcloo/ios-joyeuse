@@ -26,7 +26,11 @@ size=${5:-16G}
 repo=$(cd "$(dirname "$0")/.." && pwd)
 rdev=()
 detach_all() {
-	for d in "${rdev[@]}"; do
+	# ${rdev[@]+...}: macOS ships bash 3.2, where "${rdev[@]}" on an empty
+	# array is an unbound-variable error under `set -u`. The EXIT trap runs
+	# this at the end of a *successful* build too, which made every good run
+	# exit 1 (logs/root-build-final.log ends that way, after the sha256).
+	for d in ${rdev[@]+"${rdev[@]}"}; do
 		hdiutil detach "$d" -quiet -force 2>/dev/null || true
 	done
 }
