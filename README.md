@@ -24,7 +24,7 @@ written to the boot chain, and the iOS root lives in `userdata`.
 | GUI | SpringBoard, lock screen, home screen, Control Center, notifications, Settings |
 | Navigation | Home gesture and app switcher (`pid_hibernate`, edge-tip events) |
 | USB | Ethernet to the host for the live kernel log and a `ue0` interface |
-| Wi-Fi | **Firmware only** — WCN3990 boots, WMI/HTC up, scans find networks, but there is no `en0` (0101) |
+| Wi-Fi | **Firmware only** — WCN3990 boots, WMI/HTC up, scans find networks, but there is no `en0` (0101); 0103 adds it, never booted |
 | Battery | IOPMPowerSource, static 100 % |
 | Identity | iPhone X (`iPhone10,3` / `D22AP`), gesture UI |
 
