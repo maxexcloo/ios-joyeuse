@@ -53,6 +53,17 @@ tools/build-shim-docker.sh dtb/miatoll_unpacked/dtb out/payload.bin out/shim-boo
 
 `tools/cmdline.sh good` prints the proven boot arguments. To change one, name it: `tools/cmdline.sh good cpus=1`.
 
+Wi-Fi lives behind the `wifi=1` boot arg (`wifi_enabled()` in patch 0099). Patches 0099-0103 are already in the kernel,
+so turning it on is a repack, not a rebuild — use the `wifi` base, which adds `modem=1 wifi=1` to the proven line:
+
+```sh
+python3 tools/mkpayload.py xnu/out/kernel.development.sweet out/miatoll.adt out/payload-wifi.bin \
+    --cmdline "$(tools/cmdline.sh wifi wifi_ssid=YOURSSID wifi_pass=YOURPASS)"
+tools/build-shim-docker.sh dtb/miatoll_unpacked/dtb out/payload-wifi.bin out/shim-boot-wifi.img
+```
+
+`cmdline.sh` refuses `wifi_ssid` when `wifi` is off rather than print a line the kernel would ignore in silence.
+
 ## 4. Flash the root, boot iOS
 
 ```sh

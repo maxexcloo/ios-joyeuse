@@ -41,6 +41,12 @@ This repo already has 0099 (WLAN/modem import from ios-topaz), 0100 (firmware ta
 modem partition) and 0101 (rmtfs `hyp_assign` fix). 0101's log shows firmware READY, WMI/HTC/HTT up, radio ready and
 three scans finding ~7 networks. What is missing is `en0`; 0103 writes it and was never booted.
 
+0103 is already inside the 0102 kernel (patches are cumulative), so Wi-Fi needs no CI run: rebuild the payload with
+the gate on and repack, ~1 minute. **The gate is `wifi=1`, not the credentials** — `wifi_enabled()` in 0099 reads that
+arg, and without it 0103's whole en0/autojoin block is skipped with no log line. Use `tools/cmdline.sh wifi wifi_ssid=…
+wifi_pass=…`; `cmdline.sh good` deliberately still matches the proven 0098 line and now refuses credentials it would
+silently ignore. `out/shim-boot-miatoll-0102-wifi.img` is that image, built and unpack-verified, never booted.
+
 Miatoll is arguably closer than sweet was, because the firmware already runs. **Cost: days.** Best value per effort.
 
 ### GPU / Metal — the big one, now de-risked
