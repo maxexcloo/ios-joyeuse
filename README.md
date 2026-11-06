@@ -214,3 +214,47 @@ More in [`NOTES.md`](NOTES.md).
 ## Credits
 
 Built on Apple's open-source releases (xnu, IOHIDFamily, libpthread, hfs), [BearSSL](https://bearssl.org), [blacktop/darwin-xnu-build](https://github.com/blacktop/darwin-xnu-build), [ipsw](https://github.com/blacktop/ipsw), Qualcomm/Xiaomi's published Linux kernel sources for the hardware details, and [OrangeFox Recovery](https://orangefox.download). iOS itself is Apple's and is not distributed here.
+
+## Building on macOS (no Linux, no brew, no apfs-fuse)
+
+`tools/mkiosroot.sh` assumes a Linux host with `apfs-fuse`, `hfsprogs` and root
+loop mounts. macOS needs none of that: it attaches APFS natively, formats with
+`newfs_hfs`, and only the ownership-sensitive copy runs as root.
+
+| Tool | Replaces | Notes |
+| --- | --- | --- |
+| `tools/mkiosroot-macos.sh` | `mkiosroot.sh` | hdiutil + newfs_hfs + one `sudo` |
+| `tools/mkbootimg.py` | `mkbootimg` | AOSP's package imports `gki.*` and does not run |
+| `tools/build-shim-docker.sh` | `shim/build.sh` | cross-compiles the shim in Ubuntu |
+| `tools/root-finalize.sh` | root tweaks | idempotent; safe to re-run |
+| `tools/root-resume.sh` | — | finish an image whose copy already ran |
+| `tools/root-variant.sh` | — | instant `cp -c` clones for userland experiments |
+| `tools/cmdline.sh` | — | merge boot args by name, no duplicate args |
+| `tools/livelog.sh` | `sweet-usbnet.sh` | macOS census of the kernel live log |
+| `tools/device.sh` | — | backup / flash-root / boot / pull-log |
+| `tools/askpass.sh` | — | password dialog for sudo from a detached shell |
+
+```sh
+# root image (one sudo prompt, ~15 min)
+tools/mkiosroot-macos.sh OS.dmg SystemOS.dmg AppOS.dmg out/ios16-root.img 16G
+
+# boot image
+python3 tools/mkadt.py out/miatoll.adt --device miatoll --highmem
+python3 tools/mkpayload.py kernel.development.sweet out/miatoll.adt out/payload.bin \
+    --cmdline "$(tools/cmdline.sh good)"
+tools/build-shim-docker.sh dtb/miatoll_unpacked/dtb out/payload.bin out/shim-boot.img
+```
+
+**Two things that silently produce a broken image** (both cost a full rebuild
+before they were found):
+
+1. `diskutil mount` mounts HFS+ **`noowners`** by default, so every `chown` is
+   discarded and the tree ends up owned by the building user. Mount with
+   `-mountOptions owners`; `root-finalize.sh` now hard-fails if you forget.
+2. The IPSW DMGs must be attached with `hdiutil -owners on`, or every file
+   reads as `501/20` and `rsync --numeric-ids` faithfully copies that lie.
+
+Also easy to miss: the dyld shared cache must be **hard-linked** from
+`private/preboot/Cryptexes/OS/System/Library/Caches/com.apple.dyld` to
+`System/Library/Caches/com.apple.dyld`, because `ignition_level=1` looks at
+the plain path and on a real device `/private/preboot` is a separate volume.
