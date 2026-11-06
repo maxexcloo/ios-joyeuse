@@ -150,10 +150,28 @@ sync
 diskutil unmount "$dev" >/dev/null
 hdiutil detach "$dev" -quiet -force
 rdev=()
-# fsck_hfs -f -y repairs; -n then verifies read-only. The unicode-name rewrites
-# on Linux are not needed here (macOS decomposes names the same way iOS does).
-fsck_hfs -f -y "$out" 2>&1 | tail -3 || true
-fsck_hfs -n "$out" >/dev/null && echo "   fsck: clean"
+# fsck_hfs cannot check a raw image FILE: it stats the path for a block device
+# size, prints "Can't get device block size" and exits 8 without examining the
+# volume, so `fsck_hfs ... $out` both repaired nothing and verified nothing
+# (every build log shows that line and none ever printed "fsck: clean").
+# Attach the image and verify the device node instead -- that is the check that
+# actually reads the filesystem. -f -y is gone with it: repairing an image we
+# just wrote, by an fsck that cannot read it, is not a repair.
+chk=$(hdiutil attach -imagekey diskimage-class=CRawDiskImage -nomount "$out" 2>/dev/null |
+	awk 'NF && $1 ~ /^\/dev\/disk/ {print $1; exit}')
+if [ -n "$chk" ]; then
+	if diskutil verifyVolume "$chk" >/tmp/ios-fsck.$$ 2>&1; then
+		echo "   fsck: clean"
+	else
+		echo "   FSCK FAILED on $out:" >&2
+		tail -5 /tmp/ios-fsck.$$ >&2
+	fi
+	rm -f /tmp/ios-fsck.$$
+	hdiutil detach "$chk" -quiet -force 2>/dev/null || true
+else
+	echo "   ERROR: could not attach $out to verify it" >&2
+	exit 1
+fi
 
 ls -lh "$out"
 echo "built: $out"

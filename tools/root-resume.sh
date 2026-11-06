@@ -37,7 +37,23 @@ sync
 diskutil unmount "$dev" >/dev/null
 hdiutil detach "$dev" -quiet -force
 trap - EXIT
-fsck_hfs -f -y "$img" 2>&1 | tail -3 || true
-fsck_hfs -n "$img" >/dev/null && echo "   fsck: clean"
+# fsck_hfs cannot read a raw image file (it needs a block device for the sector
+# size: "Can't get device block size", exit 8), which is why this check never
+# printed "fsck: clean" in any build log. Attach and verify the device node.
+chk=$(hdiutil attach -imagekey diskimage-class=CRawDiskImage -nomount "$img" 2>/dev/null |
+	awk 'NF && $1 ~ /^\/dev\/disk/ {print $1; exit}')
+if [ -n "$chk" ]; then
+	if diskutil verifyVolume "$chk" >/tmp/ios-fsck.$$ 2>&1; then
+		echo "   fsck: clean"
+	else
+		echo "   FSCK FAILED on $img:" >&2
+		tail -5 /tmp/ios-fsck.$$ >&2
+	fi
+	rm -f /tmp/ios-fsck.$$
+	hdiutil detach "$chk" -quiet -force 2>/dev/null || true
+else
+	echo "   ERROR: could not attach $img to verify it" >&2
+	exit 1
+fi
 ls -lh "$img"
 shasum -a 256 "$img"
