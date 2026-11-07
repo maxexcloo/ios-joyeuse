@@ -1,0 +1,47 @@
+--- a/iokit/Kernel/arm/TopazModem.cpp
++++ b/iokit/Kernel/arm/TopazModem.cpp
+@@ -5103,7 +5103,7 @@
+ static volatile bool wl_up;
+ 
+ static errno_t
+-wl_output(__unused ifnet_t ifp, mbuf_t m)
++wl_output(ifnet_t ifp, mbuf_t m)
+ {
+ 	uint8_t buf[1514];                      /* mbuf_t is __mbuf *, these take struct mbuf * */
+ 	struct mbuf *mb = (struct mbuf *)m;
+@@ -5112,6 +5112,7 @@
+ 		m_freem(mb);
+ 		return EMSGSIZE;
+ 	}
++	bpf_tap_out(ifp, DLT_EN10MB, m, NULL, 0);
+ 	m_copydata(mb, 0, len, buf);
+ 	m_freem(mb);
+ 	return topaz_wlan_transmit(buf, len) ? 0 : ENETDOWN;
+@@ -5247,10 +5248,25 @@
+ 		return;
+ 	}
+ 	mbuf_t m = NULL;
+-	if (mbuf_allocpacket(MBUF_DONTWAIT, length, NULL, &m) != 0 || m == NULL) {
++	/* One cluster keeps the Ethernet header contiguous, as in sweet_usb.c. */
++	if (mbuf_gethdr(MBUF_DONTWAIT, MBUF_TYPE_DATA, &m) != 0 ||
++	    mbuf_mclget(MBUF_DONTWAIT, MBUF_TYPE_DATA, &m) != 0 ||
++	    !(mbuf_flags(m) & MBUF_EXT) || mbuf_maxlen(m) < length) {
++		if (m != NULL) {
++			mbuf_freem(m);
++		}
+ 		return;
+ 	}
+-	m_copyback((struct mbuf *)m, 0, (int)length, (void *)frame);
++	memcpy(mbuf_data(m), frame, length);
++	mbuf_setlen(m, length);
++	mbuf_pkthdr_setlen(m, length);
++	char *header = (char *)mbuf_data(m);
++	mbuf_pkthdr_setrcvif(m, ifp);
++	mbuf_pkthdr_setheader(m, header);
++	mbuf_pkthdr_adjustlen(m, -ETHER_HDR_LEN);
++	(void)mbuf_setdata(m, header + ETHER_HDR_LEN, length - ETHER_HDR_LEN);
++	/* DHCP reads complete Ethernet frames through BPF, before protocol input. */
++	bpf_tap_in(ifp, DLT_EN10MB, m, header, ETHER_HDR_LEN);
+ 	struct ifnet_stat_increment_param st = {};
+ 	st.packets_in = 1;
+ 	st.bytes_in = (u_int32_t)length;
