@@ -4,7 +4,7 @@ Experimental iOS 16.7.16 (20H392, iPhone X userland) on the Redmi Note 9 Pro (`j
 
 ## Status
 
-**Local phone reaches iOS userland; the graphical boot remains unconfirmed.** The verified root is installed in `userdata`; USB kernel logs show backboardd and SpringBoard starting, while the screen remains on a logo with the diagnostic console overlay. Upstream patch 0098 reports SpringBoard, FT8756 touch, buttons, eight CPU cores, UFS and software rendering. The native shim and image packing have been checked offline. QEMU runs the static PID 1 diagnostic, including dyld policy and non-root socket-delegation checks. A virtual HFS root runs Apple launchd, backboardd and SpringBoard and renders the iOS lock and home screens in QEMU, unlocks with synthetic button/touch input and opens stock Settings; first boot also seeds the application database. Wi-Fi association/DHCP/traffic, GPU acceleration and other hardware remain unverified here. The port disables substantial parts of Apple's security model.
+**Local phone reaches iOS userland; the graphical boot remains unconfirmed.** The verified root is installed in `userdata`; USB kernel logs show backboardd and SpringBoard starting. LaunchServices stalls in MobileGestalt's Wi-Fi identity fallback while generating its app-installation identifier; the screen remains on a logo. Upstream patch 0098 reports SpringBoard, FT8756 touch, buttons, eight CPU cores, UFS and software rendering. The native shim and image packing have been checked offline. QEMU runs the static PID 1 diagnostic, including dyld policy and non-root socket-delegation checks. A virtual HFS root runs Apple launchd, backboardd and SpringBoard and renders the iOS lock and home screens in QEMU, unlocks with synthetic button/touch input and opens stock Settings; first boot also seeds the application database. Wi-Fi association/DHCP/traffic, GPU acceleration and other hardware remain unverified here. The port disables substantial parts of Apple's security model.
 
 Patches 0104–0105 correct the WLAN Ethernet/BPF receive contract and a 32-bit physical-page shift that truncated cache maintenance above 4 GiB. Both modified consumers compile locally for ARM64; neither establishes radio or GPU operation. Root preparation seeds an Ethernet DHCP service for the kernel-only `en0`, which configd cannot automatically name through IOKit. The service uses Apple's [PreferencesMonitor](https://github.com/apple-oss-distributions/configd/blob/585b7f2fca293f4642d21d15c5daf187f63c4796/Plugins/PreferencesMonitor/prefsmon.c) and [IPConfiguration](https://github.com/apple-oss-distributions/bootp/blob/63cb751ca6a4e148704a701090481fd9a895dda0/IPConfiguration.bproj/ipconfigd.c) schema.
 
@@ -22,12 +22,12 @@ gh workflow run xnu.yaml
 gh run download RUN_ID -n xnu-kernel -D xnu/out
 ```
 
-Supply the phone's stock boot image, the unwrapped iPhone X `d22ap.adt`, and its FT8756 firmware, all kept in ignored `fw/`. Hardware ADTs require these product/firmware inputs; QEMU diagnostic trees may omit them.
+Supply the phone's stock boot image, the unwrapped iPhone X `d22ap.adt`, and its FT8756 firmware, all kept in ignored `fw/`. Hardware ADTs require these product/firmware inputs; QEMU diagnostic trees may omit them. Supply the phone's real Wi-Fi and Bluetooth addresses as private files containing exactly six raw bytes using `--wifi-mac PATH` and `--bluetooth-mac PATH`. MobileGestalt otherwise waits for a network controller during LaunchServices startup. These properties provide identity metadata and do not enable either radio. Keep the files and generated ADT/payload private.
 
 ```sh
 mkdir -p out
 python3 tools/unpack_bootv2.py fw/boot.img out/stock
-python3 tools/mkadt.py out/miatoll.adt --device miatoll --highmem --product fw/d22ap.adt --touch-firmware fw/focaltech_ts_fw_huaxing.bin
+python3 tools/mkadt.py out/miatoll.adt --device miatoll --highmem --product fw/d22ap.adt --touch-firmware fw/focaltech_ts_fw_huaxing.bin --wifi-mac fw/wifi-mac.bin --bluetooth-mac fw/bluetooth-mac.bin
 tools/cmdline.sh good > out/cmdline.txt
 python3 tools/mkpayload.py xnu/out/kernel.development.sweet out/miatoll.adt out/payload.bin --cmdline-file out/cmdline.txt
 mise run build -- out/stock/dtb out/payload.bin out/shim-boot.img

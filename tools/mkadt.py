@@ -122,6 +122,8 @@ def build(
     mem=None,
     product=None,
     touch_firmware=None,
+    wifi_mac=None,
+    bluetooth_mac=None,
 ):
     """qemu=True: same tree, but with QEMU virt's GIC addresses and CNTFRQ (tools/qemu-sweet.py).
     device: key of DEVICES (sweet or miatoll). phys/mem: override the single
@@ -205,6 +207,18 @@ def build(
         tail = (dev["ecid"] & 0xFFFFFFFF).to_bytes(4, "big")
         for name, tag in (("bluetooth0", 2), ("ethernet0", 3), ("wifi0", 1)):
             chosen.props.append(("mac-address-" + name, 0, bytes((2, tag)) + tail))
+
+    # MobileGestalt otherwise waits for an IONetworkController while lsd seeds
+    # the app database. Hardware identities must come from private board inputs.
+    for name, path in (("wifi0", wifi_mac), ("bluetooth0", bluetooth_mac)):
+        if path is None:
+            continue
+        if qemu:
+            raise ValueError("hardware MAC inputs cannot be used with --qemu")
+        address = Path(path).read_bytes()
+        if len(address) != 6:
+            raise ValueError("MAC input must contain exactly six raw bytes")
+        chosen.props.append(("mac-address-" + name, 0, address))
 
     # SWEET SMP: all eight cores in physical-core order (0-5 Cortex-A55,
     # 6-7 Cortex-A76), one homogeneous cluster. The kernel defaults to one
@@ -380,6 +394,13 @@ if __name__ == "__main__":
         help="device-supplied FT8756 firmware (required for miatoll hardware)",
     )
     ap.add_argument("--qemu", action="store_true")
+    ap.add_argument(
+        "--wifi-mac", help="private file containing the board's six raw Wi-Fi MAC bytes"
+    )
+    ap.add_argument(
+        "--bluetooth-mac",
+        help="private file containing the board's six raw Bluetooth MAC bytes",
+    )
     ap.add_argument("--highmem", action="store_true")
     ap.add_argument("--dump", action="store_true")
     ap.add_argument("--phys", type=lambda value: int(value, 0))
@@ -395,6 +416,8 @@ if __name__ == "__main__":
         mem=args.mem,
         product=args.product,
         touch_firmware=args.touch_firmware,
+        wifi_mac=args.wifi_mac,
+        bluetooth_mac=args.bluetooth_mac,
     )
     blob = adt.serialize(root)
     Path(args.out).write_bytes(blob)

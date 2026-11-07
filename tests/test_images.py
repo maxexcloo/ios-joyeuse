@@ -119,6 +119,35 @@ class Images(unittest.TestCase):
         for name in ("bluetooth0", "ethernet0", "wifi0"):
             self.assertIsNone(chosen.prop("mac-address-" + name))
 
+    def test_hardware_mac_handoff(self):
+        with tempfile.TemporaryDirectory() as scratch:
+            product = Path(scratch) / "product.adt"
+            product.write_bytes(
+                adt.serialize(
+                    mkadt.node(
+                        "device-tree",
+                        children=[
+                            mkadt.node("product", [("product-name", b"Test Product\0")])
+                        ],
+                    )
+                )
+            )
+            wifi, bluetooth = Path(scratch) / "wifi.bin", Path(scratch) / "bt.bin"
+            wifi.write_bytes(bytes((2, 0, 0, 0, 0, 1)))
+            bluetooth.write_bytes(bytes((2, 0, 0, 0, 0, 2)))
+            root = mkadt.build(product=product, wifi_mac=wifi, bluetooth_mac=bluetooth)
+            parsed, _ = adt.parse(adt.serialize(root))
+            chosen = next(n for n in parsed.children if n.name == "chosen")
+            self.assertEqual(chosen.prop("mac-address-wifi0"), wifi.read_bytes())
+            self.assertEqual(
+                chosen.prop("mac-address-bluetooth0"), bluetooth.read_bytes()
+            )
+            with self.assertRaisesRegex(ValueError, "--qemu"):
+                mkadt.build(qemu=True, wifi_mac=wifi)
+            wifi.write_bytes(b"not six bytes")
+            with self.assertRaisesRegex(ValueError, "six raw bytes"):
+                mkadt.build(product=product, wifi_mac=wifi)
+
     def test_root_preparation_invalidates_cached_hardware_answers(self):
         with tempfile.TemporaryDirectory() as scratch:
             cache = (
