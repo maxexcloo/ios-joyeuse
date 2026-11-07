@@ -52,7 +52,7 @@ Supply your own iPhone X IPSW. Obtain the OS, SystemOS and AppOS DMG names from 
 tools/mkiosroot-macos.sh OS.dmg SystemOS.dmg AppOS.dmg out/ios16-root.img 16G
 ```
 
-The copy needs root permissions. Attach source DMGs with `-owners on` and mount HFS+ with `-mountOptions owners`; otherwise ownership is silently lost. `root-finalize.sh` applies the bring-up changes and hard-links the dyld cache to its plain system path. `root-resume.sh` resumes a copy and `root-variant.sh` clones an image for experiments. `mkiosroot.sh` is the separate Linux path.
+The copy needs root permissions. Attach source DMGs with `-owners on` and mount HFS+ with `-mountOptions owners`; otherwise ownership is silently lost. `root-finalize.sh` applies the bring-up changes, invalidates cached MobileGestalt hardware answers and hard-links the dyld cache to its plain system path. `root-resume.sh` resumes a copy and `root-variant.sh` clones an image for experiments. `mkiosroot.sh` is the separate Linux path.
 
 ## Device Workflow
 

@@ -1,5 +1,6 @@
 """Host-side image format checks; no firmware, Apple files or devices needed."""
 import hashlib
+import importlib.util
 from pathlib import Path
 import struct
 import subprocess
@@ -12,6 +13,11 @@ sys.path.insert(0, str(ROOT / 'tools'))
 import adt
 import mkadt
 import mkpayload
+
+
+spec = importlib.util.spec_from_file_location('root_tweaks', ROOT / 'tools/sweet-root-tweaks.py')
+root_tweaks = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(root_tweaks)
 
 
 class Images(unittest.TestCase):
@@ -69,6 +75,19 @@ class Images(unittest.TestCase):
         generated = next(node for node in root.children if node.name == 'product')
         self.assertEqual(generated.prop('product-name'), b'Test Product\0')
         self.assertIsNone(generated.prop('placeholder'))
+
+    def test_root_preparation_invalidates_cached_hardware_answers(self):
+        with tempfile.TemporaryDirectory() as scratch:
+            cache = Path(scratch) / 'private/var/containers/Shared/SystemGroup/example/Library/Caches'
+            cache.mkdir(parents=True)
+            stale = cache / 'com.apple.MobileGestalt.plist'
+            stale.write_bytes(b'stale camera and flash capabilities')
+            unrelated = cache / 'other.plist'
+            unrelated.write_bytes(b'keep')
+            root_tweaks.capabilities(scratch)
+            self.assertFalse(stale.exists())
+            self.assertEqual(unrelated.read_bytes(), b'keep')
+            root_tweaks.capabilities(scratch)
 
     def test_radio_profile_inherits_boot_arguments(self):
         script = str(ROOT / 'tools/cmdline.sh')

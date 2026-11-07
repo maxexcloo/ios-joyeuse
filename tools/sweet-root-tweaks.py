@@ -122,6 +122,15 @@ def audio(root):
         print('StartRecorderServer off', os.path.relpath(conf, root))
 
 
+def capabilities(root):
+    # Stale camera/flash answers can block SpringBoard on unavailable media XPC.
+    pattern = os.path.join(root, 'private/var/containers/Shared/SystemGroup', '*',
+                           'Library/Caches/com.apple.MobileGestalt.plist')
+    for path in glob.glob(pattern):
+        os.unlink(path)
+        print('MobileGestalt: hardware capabilities will rebuild at next boot')
+
+
 def main():
     if len(sys.argv) != 2 or not os.path.isdir(os.path.join(sys.argv[1], 'System/Library/xpc')):
         sys.exit(__doc__)
@@ -130,6 +139,7 @@ def main():
     containers(root)
     activation(root)
     audio(root)
+    capabilities(root)
     merge_pref(root, 'com.apple.migration', {
         'LastSystemVersion': BUILD,
         'DMUserDataDisposition': {'SyntheticDidUpgrade': False, 'buildVersion': BUILD}})
