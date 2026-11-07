@@ -4,7 +4,7 @@ Experimental iOS 16.7.16 (20H392, iPhone X userland) on the Redmi Note 9 Pro (`j
 
 ## Status
 
-**No iOS boot on the local phone.** Upstream patch 0098 reports SpringBoard, FT8756 touch, buttons, eight CPU cores, UFS and software rendering. The native shim and image packing have been checked offline. QEMU runs the static PID 1 diagnostic, including dyld policy and non-root socket-delegation checks. A virtual HFS root runs Apple launchd, backboardd and SpringBoard and renders the iOS lock and home screens in QEMU, unlocks with synthetic button/touch input and opens stock Settings; first boot also seeds the application database. Wi-Fi association/DHCP/traffic, GPU acceleration and other hardware remain unverified here. The port disables substantial parts of Apple's security model.
+**Local phone reaches iOS userland; the graphical boot remains unconfirmed.** The verified root is installed in `userdata`; USB kernel logs show backboardd and SpringBoard starting, while the screen remains on a logo with the diagnostic console overlay. Upstream patch 0098 reports SpringBoard, FT8756 touch, buttons, eight CPU cores, UFS and software rendering. The native shim and image packing have been checked offline. QEMU runs the static PID 1 diagnostic, including dyld policy and non-root socket-delegation checks. A virtual HFS root runs Apple launchd, backboardd and SpringBoard and renders the iOS lock and home screens in QEMU, unlocks with synthetic button/touch input and opens stock Settings; first boot also seeds the application database. Wi-Fi association/DHCP/traffic, GPU acceleration and other hardware remain unverified here. The port disables substantial parts of Apple's security model.
 
 Patches 0104–0105 correct the WLAN Ethernet/BPF receive contract and a 32-bit physical-page shift that truncated cache maintenance above 4 GiB. Both modified consumers compile locally for ARM64; neither establishes radio or GPU operation. Root preparation seeds an Ethernet DHCP service for the kernel-only `en0`, which configd cannot automatically name through IOKit. The service uses Apple's [PreferencesMonitor](https://github.com/apple-oss-distributions/configd/blob/585b7f2fca293f4642d21d15c5daf187f63c4796/Plugins/PreferencesMonitor/prefsmon.c) and [IPConfiguration](https://github.com/apple-oss-distributions/bootp/blob/63cb751ca6a4e148704a701090481fd9a895dda0/IPConfiguration.bproj/ipconfigd.c) schema.
 
@@ -56,8 +56,11 @@ Use an unlocked joyeuse and its own recovery image. Confirm the fitted touch con
 ```sh
 fastboot boot recovery.img
 tools/device.sh backup backups/first
-tools/device.sh flash-root out/ios16-root.img
+img2simg out/ios16-root.img out/ios16-root.simg 4096
+tools/device.sh flash-root out/ios16-root.simg
 ```
+
+Use Android sparse format for large roots (`brew install simg2img` provides `img2simg` on macOS). Fastboot 37 can fail reading a large raw image before transfer; the equivalent sparse image avoids that path.
 
 Start logging in one terminal and boot in another:
 
