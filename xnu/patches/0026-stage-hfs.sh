@@ -12,6 +12,7 @@ set -euo pipefail
 
 # hfs-627.100.6 is paired with xnu-8796.141.3 in Apple's macos-135
 # release.json. Fetch the immutable commit, never a moving branch/tag.
+# renovate: datasource=git-refs depName=https://github.com/apple-oss-distributions/hfs
 hfs_sha=31d5ec238dfab485e78a9a30b8b92d13e8914f03
 hfs_tmp=$(mktemp -d)
 trap 'rm -rf "$hfs_tmp"' EXIT

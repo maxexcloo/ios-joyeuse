@@ -13,7 +13,12 @@ system/tools/mkbootimg/include/bootimg/bootimg.h (v2 header is 1660 bytes,
 padded to the page size).
 """
 
-import argparse, hashlib, os, struct, sys
+import argparse
+import hashlib
+import os
+import struct
+import sys
+from pathlib import Path
 
 PAGE = 4096
 
@@ -52,7 +57,7 @@ def main():
     ap.add_argument("--name", default="")
     a = ap.parse_args()
 
-    blob = lambda p: open(p, "rb").read() if p else b""
+    blob = lambda p: Path(p).read_bytes() if p else b""
     kernel, ramdisk, second = blob(a.kernel), blob(a.ramdisk), blob(a.second)
     dtb, dtbo = blob(a.dtb), blob(a.recovery_dtbo)
     page = a.pagesize
@@ -97,7 +102,8 @@ def main():
     assert len(hdr) == 1632, len(hdr)
 
     hdr += struct.pack(
-        "<IQI", len(dtbo),
+        "<IQI",
+        len(dtbo),
         page + sum(len(pad(p, page)) for p in (kernel, ramdisk, second)) if dtbo else 0,
         1660,
     )

@@ -16,3 +16,4 @@ logs/
 *.simg
 *.ipsw
 *.dmg
+fw/

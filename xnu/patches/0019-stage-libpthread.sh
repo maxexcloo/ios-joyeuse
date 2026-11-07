@@ -11,6 +11,7 @@ set -euo pipefail
 
 # libpthread-514.100.2 is paired with xnu-8796.141.3 in Apple's macos-135
 # release.json. Fetch the immutable commit, never a moving branch/tag.
+# renovate: datasource=git-refs depName=https://github.com/apple-oss-distributions/libpthread
 pthread_sha=a6c70ca0e544347a0377babf748f831577ec24f9
 pthread_tmp=$(mktemp -d)
 trap 'rm -rf "$pthread_tmp"' EXIT

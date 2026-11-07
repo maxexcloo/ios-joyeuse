@@ -1,6 +1,14 @@
-# LLVM must be on PATH: clang, ld.lld, llvm-objcopy, llvm-nm and llvm-readelf.
 [tasks.build]
 run = "python3 tools/build-shim.py"
 
 [tasks.check]
+depends = [
+  "check:actions",
+  "check:mise",
+  "check:oxfmt",
+  "check:python",
+  "check:shell",
+  "check:updates",
+  "check:whitespace",
+]
 run = "python3 tools/check.py"

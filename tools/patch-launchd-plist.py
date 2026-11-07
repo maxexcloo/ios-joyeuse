@@ -14,32 +14,34 @@ reasons and the frameworks' own error messages then show on screen.
 Every job's _PanicOnCrash key is also renamed (_PanicOnCrasX), so a crashing
 daemon does not panic the system during bring-up.
 """
-import plistlib, sys
 
-LOG_ENV = {'OS_ACTIVITY_DT_MODE': 'YES', 'CFLOG_FORCE_STDERR': '1'}
+import plistlib
+import sys
+
+LOG_ENV = {"OS_ACTIVITY_DT_MODE": "YES", "CFLOG_FORCE_STDERR": "1"}
 
 
 def main():
     src, dst, labels = sys.argv[1], sys.argv[2], set(sys.argv[3:])
-    with open(src, 'rb') as f:
+    with open(src, "rb") as f:
         plist = plistlib.load(f)
     found = set()
-    for job in plist['LaunchDaemons'].values():
-        if '_PanicOnCrash' in job:
-            job['_PanicOnCrasX'] = job.pop('_PanicOnCrash')
-        label = job.get('Label')
+    for job in plist["LaunchDaemons"].values():
+        if "_PanicOnCrash" in job:
+            job["_PanicOnCrasX"] = job.pop("_PanicOnCrash")
+        label = job.get("Label")
         if label in labels:
-            job['StandardOutPath'] = '/dev/console'
-            job['StandardErrorPath'] = '/dev/console'
-            job.setdefault('EnvironmentVariables', {}).update(LOG_ENV)
+            job["StandardOutPath"] = "/dev/console"
+            job["StandardErrorPath"] = "/dev/console"
+            job.setdefault("EnvironmentVariables", {}).update(LOG_ENV)
             found.add(label)
     missing = labels - found
     if missing:
-        sys.exit(f'jobs not found: {", ".join(sorted(missing))}')
-    with open(dst, 'wb') as f:
+        sys.exit(f"jobs not found: {', '.join(sorted(missing))}")
+    with open(dst, "wb") as f:
         plistlib.dump(plist, f, fmt=plistlib.FMT_BINARY)
-    print(f'{dst}: console logging for {", ".join(sorted(found))}')
+    print(f"{dst}: console logging for {', '.join(sorted(found))}")
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

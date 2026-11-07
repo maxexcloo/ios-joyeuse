@@ -1,4 +1,14 @@
 {
   $schema: "https://docs.renovatebot.com/renovate-schema.json",
   extends: ["github>maxexcloo/dotfiles//renovate/default.json5"],
+  packageRules: [
+    {
+      description: "Keep the Apple providers paired with the macOS 13.5 XNU ABI",
+      matchDepNames: [
+        "https://github.com/apple-oss-distributions/hfs",
+        "https://github.com/apple-oss-distributions/libpthread",
+      ],
+      enabled: false,
+    },
+  ],
 }

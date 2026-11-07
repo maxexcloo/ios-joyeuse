@@ -108,6 +108,8 @@ echo "== linking cryptex extras at their root paths"
 # with no counterpart in the OS root gets a hard link at its normal location
 # (libobjc-trampolines, libffi-trampolines, libstdc++, ...).
 for c in OS App; do
+	# Variables are expanded by the inner shell, not this host shell.
+	# shellcheck disable=SC2016
 	$SUDO bash -c '
 		set -euo pipefail
 		root=$1; name=$2
@@ -129,6 +131,8 @@ echo "== logd stores, keybag, bring-up tweaks"
 $SUDO "$repo/tools/root-finalize.sh" "$mnt"
 
 echo "== verifying ownership landed on disk"
+# Variables are expanded by the inner shell, not this host shell.
+# shellcheck disable=SC2016
 $SUDO bash -euc '
 	r=$1
 	bad=0

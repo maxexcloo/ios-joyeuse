@@ -3,6 +3,7 @@
 set -euo pipefail
 [[ "${MACHINE_CONFIG:-}" == SWEET ]] || exit 0
 [[ -f libkern/crypto/corecrypto_aes.c ]] || exit 1
+# renovate: datasource=git-refs depName=https://www.bearssl.org/git/BearSSL
 bearssl_sha=7bea48e5e850ab4cafbe68d3765cdaba13a86d6f
 bearssl_tmp=$(mktemp -d)
 trap 'rm -rf "$bearssl_tmp"' EXIT
