@@ -9,7 +9,7 @@ FILTER     only compile sources whose path contains one of these strings
            a full path relative to xnu/ also compiles newly added sources
 
 Edit the sources under BUILDTREE/xnu, re-run, and turn the result into
-patches with `git diff` there. Uses the local Apple-fork clang (swiftlang).
+patches with `git diff` there. Uses the local clang/clang++ (override with CC/CXX).
 
 Env: XNU_CC_EXTRA   extra flags (e.g. "-DKPERF -DKPC" for config changes)
      XNU_CC_POST    flags appended after the original ones (like a per-object
@@ -27,19 +27,17 @@ import sys
 from collections import Counter
 from pathlib import Path
 
-CI_DXB = "/Users/runner/work/ios-sweet/ios-sweet/dxb"
 CI_SDK_PLATFORM = re.compile(
     r"/Applications/Xcode[^ ]*?\.sdk/+System/Library/Frameworks/Kernel\.framework/Versions/A/PrivateHeaders/platform"
 )
-CLANG = os.path.expanduser("~/swift/usr/bin/clang")
 DROP = {"-c", "-g", "-MD", "-MMD"}
 DROP_WITH_ARG = {"-MF", "-MT", "-o", "-arch"}
 COMPONENTS = ("osfmk", "bsd", "iokit", "libkern", "pexpert", "security", "san", "libsa")
 
 
-def commands(log):
+def commands(log, ci_dxb):
     seen = {}
-    for line in Path(log).read_text(errors="replace").splitlines(keepends=True):
+    for line in log.splitlines(keepends=True):
         if "/clang" not in line or " -c " not in line:
             continue
         line = re.sub(r"^build\s+Build\s+\S+\s+", "", line.rstrip("\n"))
@@ -53,14 +51,14 @@ def commands(log):
         ):  # shell fragments with unbalanced quotes: not a plain compile
             continue
         srcs = [
-            a for a in args if re.search(r"\.(c|cpp|s|S)$", a) and a.startswith(CI_DXB)
+            a for a in args if re.search(r"\.(c|cpp|s|S)$", a) and a.startswith(ci_dxb)
         ]
         if len(srcs) == 1 and "/xnu/" in srcs[0]:
             seen[srcs[0]] = ("clang++" if m.group(2) else "clang", args)
     return seen
 
 
-def makefile_sources(bt):
+def makefile_sources(bt, ci_dxb):
     """Every source the generated per-config Makefiles build, as CI paths.
     The CI log is not enough: GitHub splits very long (C++) command lines and
     parallel make interleaves them, so some commands cannot be recovered."""
@@ -78,9 +76,9 @@ def makefile_sources(bt):
             if not m:
                 continue
             for f in m.group(1).split():
-                f = f.replace("$(SOURCE_DIR)", CI_DXB + "/xnu")
+                f = f.replace("$(SOURCE_DIR)", ci_dxb + "/xnu")
                 if f.startswith("./"):  # generated (iig, yacc) in the build dir
-                    f = os.path.join(root.replace(bt, CI_DXB), f[2:])
+                    f = os.path.join(root.replace(bt, ci_dxb), f[2:])
                 out.append(f)
     return out
 
@@ -106,7 +104,7 @@ def component_dirs(bt):
     return out
 
 
-def run(item, bt, cdirs):
+def run(item, bt, cdirs, ci_dxb):
     src, (kind, args) = item
     objdir = os.environ.get("XNU_CC_OBJDIR")
     mode = (
@@ -114,14 +112,16 @@ def run(item, bt, cdirs):
             "-c",
             "-o",
             os.path.join(
-                objdir, src.replace(CI_DXB + "/xnu/", "").replace("/", "__") + ".o"
+                objdir, src.replace(ci_dxb + "/xnu/", "").replace("/", "__") + ".o"
             ),
         ]
         if objdir
         else ["-fsyntax-only"]
     )
     new = [
-        CLANG if kind == "clang" else CLANG + "++",
+        os.environ.get("CC", "clang")
+        if kind == "clang"
+        else os.environ.get("CXX", "clang++"),
         "-target",
         "arm64-apple-macos14.0",
         *mode,
@@ -141,7 +141,7 @@ def run(item, bt, cdirs):
             skip = True
             continue
         a = CI_SDK_PLATFORM.sub(os.path.join(bt, "sdk-kernel-platform/platform"), a)
-        new.append(a.replace(CI_DXB, bt))
+        new.append(a.replace(ci_dxb, bt))
     new += os.environ.get("XNU_CC_POST", "").split()
     comp = next((c for c in COMPONENTS if f"/xnu/{c}/" in src), None) or next(
         (c for c in COMPONENTS if f"/{c}/" in src), None
@@ -157,9 +157,14 @@ def main():
     log, bt = sys.argv[1], os.path.abspath(sys.argv[2])
     per_file = "--per-file" in sys.argv
     filters = [a for a in sys.argv[3:] if a != "--per-file"]
-    cmds = commands(log)
+    log_text = Path(log).read_text(errors="replace")
+    ci_dxb = re.search(r"(/Users/runner/work/[^/\s]+/[^/\s]+/dxb)/xnu/", log_text)
+    if ci_dxb is None:
+        sys.exit("no CI build root found in log")
+    ci_dxb = ci_dxb.group(1)
+    cmds = commands(log_text, ci_dxb)
     synth = 0
-    for src in makefile_sources(bt):
+    for src in makefile_sources(bt, ci_dxb):
         if src not in cmds:
             t = template_for(src, cmds)
             if t:
@@ -171,7 +176,7 @@ def main():
         if os.path.isfile(os.path.join(bt, "xnu", f)) and f.endswith(
             (".c", ".cpp", ".s", ".S")
         ):
-            src = CI_DXB + "/xnu/" + f
+            src = ci_dxb + "/xnu/" + f
             if src not in cmds:
                 t = template_for(src, cmds)
                 if t:
@@ -186,10 +191,10 @@ def main():
     cdirs = component_dirs(bt)
     print(f"{len(cmds)} files, build dirs: {sorted(cdirs)}", file=sys.stderr)
     errors, failed = Counter(), []
-    with cf.ThreadPoolExecutor(os.cpu_count()) as ex:
-        for src, rc, err in ex.map(lambda i: run(i, bt, cdirs), cmds.items()):
+    with cf.ThreadPoolExecutor(min(4, os.cpu_count() or 1)) as ex:
+        for src, rc, err in ex.map(lambda i: run(i, bt, cdirs, ci_dxb), cmds.items()):
             if rc:
-                failed.append(src.replace(CI_DXB + "/xnu/", ""))
+                failed.append(src.replace(ci_dxb + "/xnu/", ""))
                 if per_file:
                     first = [l for l in err.splitlines() if "error:" in l][:2]
                     print(failed[-1])
