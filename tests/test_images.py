@@ -87,6 +87,14 @@ class Images(unittest.TestCase):
         self.assertNotIn("product", [node.name for node in diagnostic.children])
         chosen = next(node for node in diagnostic.children if node.name == "chosen")
         self.assertEqual(chosen.prop("sweet-qemu"), struct.pack("<I", 1))
+        addresses = [
+            chosen.prop("mac-address-" + name)
+            for name in ("bluetooth0", "ethernet0", "wifi0")
+        ]
+        self.assertEqual(len(set(addresses)), 3)
+        for address in addresses:
+            self.assertEqual(len(address), 6)
+            self.assertEqual(address[0] & 3, 2)  # local, unicast virtual identity
 
     def test_hardware_adt_preserves_product_properties(self):
         product = mkadt.node("product", [("product-name", b"Test Product\0")])
@@ -108,6 +116,8 @@ class Images(unittest.TestCase):
             chosen.prop("focaltech-firmware"), b"device-supplied touch firmware"
         )
         self.assertIsNone(chosen.prop("sweet-qemu"))
+        for name in ("bluetooth0", "ethernet0", "wifi0"):
+            self.assertIsNone(chosen.prop("mac-address-" + name))
 
     def test_root_preparation_invalidates_cached_hardware_answers(self):
         with tempfile.TemporaryDirectory() as scratch:

@@ -201,6 +201,10 @@ def build(
 
     if qemu:
         chosen.props.append(("sweet-qemu", 0, u32(1)))
+        # MobileGestalt derives the virtual UniqueDeviceID without waiting for a NIC.
+        tail = (dev["ecid"] & 0xFFFFFFFF).to_bytes(4, "big")
+        for name, tag in (("bluetooth0", 2), ("ethernet0", 3), ("wifi0", 1)):
+            chosen.props.append(("mac-address-" + name, 0, bytes((2, tag)) + tail))
 
     # SWEET SMP: all eight cores in physical-core order (0-5 Cortex-A55,
     # 6-7 Cortex-A76), one homogeneous cluster. The kernel defaults to one
