@@ -16,15 +16,15 @@ gh workflow run xnu.yaml
 gh run download RUN_ID -n xnu-kernel -D xnu/out
 ```
 
-Supply the phone's stock boot image, the unwrapped iPhone X `d22ap.adt`, and its FT8756 firmware in `fw/`. Hardware ADTs require these product/firmware inputs; QEMU diagnostic trees may omit them.
+Supply the phone's stock boot image, the unwrapped iPhone X `d22ap.adt`, and its FT8756 firmware, all kept in ignored `fw/`. Hardware ADTs require these product/firmware inputs; QEMU diagnostic trees may omit them.
 
 ```sh
 mkdir -p out
-python3 tools/unpack_bootv2.py boot.img dtb/miatoll_unpacked
-python3 tools/mkadt.py out/miatoll.adt --device miatoll --highmem --product d22ap.adt --touch-firmware fw/focaltech_ts_fw_huaxing.bin
+python3 tools/unpack_bootv2.py fw/boot.img out/stock
+python3 tools/mkadt.py out/miatoll.adt --device miatoll --highmem --product fw/d22ap.adt --touch-firmware fw/focaltech_ts_fw_huaxing.bin
 tools/cmdline.sh good > out/cmdline.txt
 python3 tools/mkpayload.py xnu/out/kernel.development.sweet out/miatoll.adt out/payload.bin --cmdline-file out/cmdline.txt
-mise run build -- dtb/miatoll_unpacked/dtb out/payload.bin out/shim-boot.img
+mise run build -- out/stock/dtb out/payload.bin out/shim-boot.img
 ```
 
 The shim build verifies relocation safety, the ARM64 header and packed sections. `cmdline.sh good` preserves upstream 0098 arguments; append `cpus=1` to override one. The experimental `wifi` profile needs patches 0099–0103. Put credentials in a private command-line file. This Ethernet interface does not provide Wi-Fi controls in Settings.
