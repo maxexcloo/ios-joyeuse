@@ -44,6 +44,7 @@ struct IOTimerEventSource {
     void setTimeoutMS(unsigned int ms) { assert(ms > 0); pending = true; }
 };
 constexpr unsigned int kHIDUsage_Csmr_Menu = 0x40;
+constexpr unsigned int kHIDUsage_Csmr_Power = 0x30;
 struct Touch {
     bool down = false;
     int previous = 0, strokes = 0;
@@ -60,7 +61,8 @@ struct SweetHIDButtons : OSObject {
     bool fTestSwipe = false, down = false;
     unsigned int fTestCount = 0, fTestSecs = 30, presses = 0;
     void key(unsigned int usage, bool next) {
-        assert(usage == kHIDUsage_Csmr_Menu && down != next);
+        assert(usage == (fTestSwipe ? kHIDUsage_Csmr_Power : kHIDUsage_Csmr_Menu));
+        assert(down != next);
         down = next; if (next) ++presses;
     }
     static void testFired(OSObject *, IOTimerEventSource *);

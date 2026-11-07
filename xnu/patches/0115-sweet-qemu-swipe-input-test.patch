@@ -40,7 +40,7 @@
 +		/* Wake, then swipe from the bottom edge through the real HID queue. */
 +		unsigned int phase = self->fTestCount % 16;
 +		if (phase < 2) {
-+			self->key(kHIDUsage_Csmr_Menu, phase == 0);
++			self->key(kHIDUsage_Csmr_Power, phase == 0);
 +		} else if (gSweetTouch) {
 +			int y = phase == 15 ? 590 : 2390 - (int)(phase - 2) * 150;
 +			gSweetTouch->touch(0, phase != 15, 540, y);
