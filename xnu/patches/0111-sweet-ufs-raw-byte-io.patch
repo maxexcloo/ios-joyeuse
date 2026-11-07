@@ -1,0 +1,125 @@
+--- a/bsd/dev/sweet_ufs.c
++++ b/bsd/dev/sweet_ufs.c
+@@ -28,6 +28,7 @@
+ #include <sys/proc.h>
+ #include <sys/uio.h>
+ #include <miscfs/devfs/devfs.h>
++#include <kern/kalloc.h>
+ #include <kern/locks.h>
+ #include <kern/clock.h>
+ #include <kern/sched_prim.h>
+@@ -642,19 +643,103 @@
+ 	return su.ready ? (int)MIN(su.nblocks * UFS_BLOCK / su.secsize, INT_MAX) : -1;
+ }
+ 
+-static int
+-sweet_ufs_read(dev_t dev, struct uio *uio, __unused int ioflag)
+-{
+-	return physio(sweet_ufs_strategy, NULL, dev, B_READ, minphys, uio, (int)su.secsize);
+-}
+-
+-static int
+-sweet_ufs_write(dev_t dev, struct uio *uio, __unused int ioflag)
+-{
+-	if (!su.writable) {
++/*
++ * Raw UIO offsets need byte precision: physio rounds them to logical sectors,
++ * and its B_PHYS address can belong to either user or kernel space. uiomove
++ * preserves the UIO address-space and scatter/gather contract instead.
++ */
++static int
++sweet_ufs_raw_io(struct uio *uio, bool write)
++{
++	uint64_t part_bytes = su.nblocks * UFS_BLOCK;
++	uint64_t start = (uint64_t)uio_offset(uio);
++	int error = 0;
++
++	if (write && !su.writable) {
+ 		return EROFS;
+ 	}
+-	return physio(sweet_ufs_strategy, NULL, dev, B_WRITE, minphys, uio, (int)su.secsize);
++	if (uio_offset(uio) < 0) {
++		return EINVAL;
++	}
++	if (write && (start % su.secsize || uio_resid(uio) % su.secsize ||
++	    start > part_bytes || (uint64_t)uio_resid(uio) > part_bytes - start)) {
++		return EINVAL;
++	}
++	if (uio_resid(uio) == 0 || (!write && start >= part_bytes)) {
++		return 0;
++	}
++	void *scratch = kalloc_data(BOUNCE_SIZE, Z_WAITOK);
++	if (scratch == NULL) {
++		return ENOMEM;
++	}
++	while (uio_resid(uio) > 0) {
++		uint64_t pos = (uint64_t)uio_offset(uio);
++		if (pos >= part_bytes) {
++			break;
++		}
++		uint32_t skip = (uint32_t)(pos % UFS_BLOCK);
++		uint32_t n = (uint32_t)MIN((uint64_t)uio_resid(uio),
++		    MIN((uint64_t)BOUNCE_SIZE - skip, part_bytes - pos));
++		uint32_t blocks = (skip + n + UFS_BLOCK - 1) / UFS_BLOCK;
++		void *bounce = (void *)(su.dma + DMA_BOUNCE);
++		if (write) {
++			/* Advance the caller only after the device accepts this chunk. */
++			uio_t copy = uio_duplicate(uio);
++			if (copy == NULL) {
++				error = ENOMEM;
++				break;
++			}
++			error = uiomove(scratch, (int)n, copy);
++			uio_free(copy);
++			if (error) {
++				break;
++			}
++		}
++		lck_mtx_lock(&sweet_ufs_lock);
++		if (!write || skip || n % UFS_BLOCK) {
++			error = ufs_read_blocks(su.first_block + pos / UFS_BLOCK, blocks);
++		}
++		if (!error) {
++			if (write) {
++				memcpy((char *)bounce + skip, scratch, n);
++				error = ufs_write_blocks(su.first_block + pos / UFS_BLOCK, blocks);
++			} else {
++				memcpy(scratch, (char *)bounce + skip, n);
++			}
++		}
++		lck_mtx_unlock(&sweet_ufs_lock);
++		if (error) {
++			break;
++		}
++		/* User-page faults can need this disk, so no uiomove under its lock. */
++		if (write) {
++			for (uint32_t left = n; left > 0;) {
++				uio_update(uio, 0);
++				uint32_t step = (uint32_t)MIN((uint64_t)left, uio_curriovlen(uio));
++				uio_update(uio, step);
++				left -= step;
++			}
++		} else {
++			error = uiomove(scratch, (int)n, uio);
++			if (error) {
++				break;
++			}
++		}
++	}
++	kfree_data(scratch, BOUNCE_SIZE);
++	return error;
++}
++
++static int
++sweet_ufs_read(__unused dev_t dev, struct uio *uio, __unused int ioflag)
++{
++	return sweet_ufs_raw_io(uio, false);
++}
++
++static int
++sweet_ufs_write(__unused dev_t dev, struct uio *uio, __unused int ioflag)
++{
++	return sweet_ufs_raw_io(uio, true);
+ }
+ 
+ static const struct bdevsw sweet_ufs_bdevsw = {

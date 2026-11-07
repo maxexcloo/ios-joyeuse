@@ -18,7 +18,7 @@ With --kernel KERNEL (the matching unstripped Mach-O), also decode the
 framebuffer using its iso_font into fb.txt and write result.json. This is a
 snapshot of the circular screen, not a complete boot log. --fail-on-panic
 returns 2 when a panic is visible; absence of a panic does not prove boot.
-An undecodable or blank screen returns 3 with --fail-on-panic.
+An undecodable or blank screen returns 3 with --fail-on-panic when no kernel console is available.
 The matching kernel also enables full circular-console capture in console.txt.
 --expect TEXT requires a console marker and returns 4 when it is missing.
 --disk IMAGE exposes a host HFS image through virtio using disk.qcow2 in OUTDIR;
@@ -387,8 +387,11 @@ def main():
             Path(f"{out}/console.txt").write_text(console)
             result["console_bytes"] = total
             result["console_truncated"] = total > len(ring)
+            result["framebuffer_status"] = result["status"]
             if "panic(cpu " in console or "SWEET EARLY PANIC:" in console:
                 result["status"] = "panic"
+            elif total and result["status"] != "panic":
+                result["status"] = "no_panic_observed"
             missing = [text for text in a.expect if text not in console]
             result["missing_expectations"] = missing
             os.unlink(f"{out}/console.raw")

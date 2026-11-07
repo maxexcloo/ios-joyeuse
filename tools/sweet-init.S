@@ -118,6 +118,22 @@ test_amfi:
 	b.cc	amfi_failed
 	cmp	x0, #14
 	b.ne	amfi_failed
+	adr	x0, amfi_name
+	mov	x1, #0x5a
+	mov	x2, #0
+	mov	x16, #SYS_mac_syscall
+	svc	#0x80
+	b.cc	amfi_failed
+	cmp	x0, #14
+	b.ne	amfi_failed
+	adr	x0, amfi_name
+	mov	x1, #0x5b
+	mov	x2, #0
+	mov	x16, #SYS_mac_syscall
+	svc	#0x80
+	b.cc	amfi_failed
+	cmp	x0, #103
+	b.ne	amfi_failed
 	adr	x1, amfi_ok
 	adr	x2, amfi_ok_end
 	b	amfi_report
