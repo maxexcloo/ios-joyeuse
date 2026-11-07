@@ -1,0 +1,40 @@
+--- a/iokit/Kernel/arm/hid/SweetHID.cpp
++++ b/iokit/Kernel/arm/hid/SweetHID.cpp
+@@ -340,6 +340,7 @@
+ 	IOTimerEventSource *fTest;
+ 	UInt32 fTestSecs;
+ 	UInt32 fTestCount;
++	UInt32 fTestCycles;
+ 	bool fTestSwipe;
+ 	bool fTestTap;
+ 	int fTestTapX, fTestTapY;
+@@ -397,6 +398,10 @@
+ 		    SecureDTLookupEntry(NULL, "/chosen", &chosen) == kSuccess &&
+ 		    SecureDTGetProperty(chosen, "sweet-qemu", (const void **)&qemu, &size) == kSuccess &&
+ 		    size == sizeof(*qemu) && *qemu == 1;
++		fTestCycles = 30;
++		if (fTestSwipe) {
++			(void)PE_parse_boot_argn("sweethidcycles", &fTestCycles, sizeof(fTestCycles));
++		}
+ 		fTestTap = fTestSwipe &&
+ 		    PE_parse_boot_argn("sweethidtapx", &fTestTapX, sizeof(fTestTapX)) &&
+ 		    PE_parse_boot_argn("sweethidtapy", &fTestTapY, sizeof(fTestTapY));
+@@ -430,6 +435,9 @@
+ 	SweetHIDButtons *self = (SweetHIDButtons *)owner;
+ 
+ 	if (self->fTestSwipe) {
++		if (self->fTestCycles == 0) {
++			return;
++		}
+ 		/* Wake, then swipe from the bottom edge through the real HID queue. */
+ 		unsigned int steps = self->fTestTap ? 18 : 16;
+ 		unsigned int phase = self->fTestCount % steps;
+@@ -443,7 +451,7 @@
+ 				gSweetTouch->touch(0, phase == 16, self->fTestTapX, self->fTestTapY);
+ 			}
+ 		}
+-		if (++self->fTestCount < steps * 30) {
++		if (++self->fTestCount / steps < self->fTestCycles) {
+ 			unsigned int ms = phase == 0 || phase == 16 ? 100 :
+ 			    phase == 1 || (phase == 15 && self->fTestTap) ? 1000 :
+ 			    phase == steps - 1 ? self->fTestSecs * 1000 : 40;

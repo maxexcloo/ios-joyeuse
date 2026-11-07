@@ -65,7 +65,7 @@ Touch *gSweetTouch = &touch;
 struct SweetHIDButtons : OSObject {
     bool fTestSwipe = false, fTestTap = false, down = false;
     int fTestTapX = 670, fTestTapY = 850;
-    unsigned int fTestCount = 0, fTestSecs = 30, presses = 0;
+    unsigned int fTestCount = 0, fTestSecs = 30, fTestCycles = 30, presses = 0;
     void key(unsigned int usage, bool next) {
         assert(usage == (fTestSwipe ? kHIDUsage_Csmr_Power : kHIDUsage_Csmr_Menu));
         assert(down != next);
@@ -75,12 +75,14 @@ struct SweetHIDButtons : OSObject {
 };
 // PRODUCTION CALLBACK
 int main() {
+    for (unsigned int cycles : {0, 1, 2, 30}) {
     for (bool swipe : {false, true}) {
       for (bool tap : {false, true}) {
         if (tap && !swipe) continue;
         touch = Touch{};
         touch.expectTap = tap;
         SweetHIDButtons buttons;
+        buttons.fTestCycles = cycles;
         buttons.fTestSwipe = swipe;
         buttons.fTestTap = tap;
         IOTimerEventSource timer;
@@ -90,10 +92,12 @@ int main() {
             SweetHIDButtons::testFired(&buttons, &timer);
             assert(++callbacks < 1000);
         }
-        assert(buttons.presses > 0 && !buttons.down && !touch.down);
-        assert((touch.strokes > 0) == swipe);
-        assert((touch.taps > 0) == tap);
+        assert(buttons.presses == (swipe ? cycles : 30));
+        assert(!buttons.down && !touch.down);
+        assert(touch.strokes == (swipe ? cycles : 0));
+        assert(touch.taps == (tap ? cycles : 0));
       }
+    }
     }
 }
 """.replace("// PRODUCTION CALLBACK", callback)
