@@ -1,98 +1,80 @@
-# ios-miatoll
+# iOS Miatoll
 
-**Apple's iOS 16 running on a Redmi Note 9 Pro.**
+Experimental iOS 16.7.16 (20H392, iPhone X D22AP userland) on the Xiaomi Redmi Note 9 Pro (`joyeuse`, Snapdragon 720G / SM7125, Adreno 618). Based on [olaffx/ios-miatoll](https://github.com/olaffx/ios-miatoll), itself derived from ios-sweet. See [CREDITS.md](CREDITS.md) for provenance and licences.
 
-A port of [ios-sweet](https://github.com/dipa-studio/ios-sweet) to the Redmi Note 9 family (`miatoll`: curtana,
-joyeuse, excalibur, gram — Qualcomm SM7125 / Snapdragon 720G, Adreno 618). Apple's open-source XNU kernel (xnu-8796,
-the iOS 16 generation), with ios-sweet's patches and the miatoll ones on top, runs the **unmodified iOS 16.7.16 (20H392)
-userland of the iPhone X**. The phone is booted with `fastboot boot` from the stock Xiaomi bootloader; nothing is
-written to the boot chain, and the iOS root lives in `userdata`.
+**This checkout has not booted iOS on the local phone.** The parent port reports an interactive SpringBoard with FT8756 touch, hardware buttons, all eight CPU cores, UFS storage and software rendering at patch 0098. Those are upstream results, not local validation. Other miatoll variants and panel/controller combinations need their own verification.
 
-> Experimental bring-up, not a usable phone OS. It **erases Android's user data**, Apple's security model is mostly
-> switched off, and most hardware drivers are missing. Do not put anything personal on it.
+| Area                  | Evidence & Remaining Work                                                                                                                                        |
+| --------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Boot, display & touch | Upstream patch 0098 reports successful boots; local images still need a first boot                                                                               |
+| Wi-Fi                 | Patches 0099–0103 contain modem firmware loading, an Ethernet interface and boot-argument autojoin; association, DHCP, DNS and traffic remain unverified locally |
+| GPU                   | No accelerated renderer in this tree; related Adreno 618 work needs a board-specific port and on-device validation                                               |
+| USB logging           | Code for CDC-ECM and UDP logging is present; the local USB path is unverified                                                                                    |
+| Battery               | Static 100% indicator                                                                                                                                            |
+| Other hardware        | No established Bluetooth, audio, camera, sensors, GPS, cellular, NFC or fingerprint support here                                                                 |
+| Apps & Apple services | System apps have upstream failures; Apple ID/App Store support is not established                                                                                |
 
-## What works (2026-10-21, kernel 0101)
+The root replaces `userdata`, erasing Android data. `fastboot boot` loads the shim into RAM and does not replace the boot chain. Rebooting selects the Android kernel again, but Android needs `userdata` reformatted before normal use. The port disables substantial parts of Apple's security model.
 
-| Area | State |
-| --- | --- |
-| Boot | Stock ABL (unlocked) -> `fastboot boot` of the shim -> XNU |
-| CPU | All 8 cores (6x Cortex-A55 + 2x Cortex-A76), PSCI, 16K pages, GICv3 |
-| Storage | UFS host driver; journaled HFS+ root in `userdata`, read/write |
-| Display | 1080x2400 panel; iOS sees an iPhone X (1125x2436), CoreAnimation in software |
-| Touch | FocalTech FT8756 over bit-banged SPI (QUP SE11), delivered as HID events |
-| Buttons | Power and volume through PMIC/SPMI; lock and wake |
-| GUI | SpringBoard, lock screen, home screen, Control Center, notifications, Settings |
-| Navigation | Home gesture and app switcher (`pid_hibernate`, edge-tip events) |
-| USB | Ethernet to the host for the live kernel log and a `ue0` interface |
-| Wi-Fi | **Firmware only** — WCN3990 boots, WMI/HTC up, scans find networks, but there is no `en0` (0101); 0103 adds it, never booted |
-| Battery | IOPMPowerSource, static 100 % |
-| Identity | iPhone X (`iPhone10,3` / `D22AP`), gesture UI |
+## Build & Check
 
-**Not working:** GPU/Metal (CPU drawing, ~20-30 fps), Wi-Fi as an iOS interface, Bluetooth, audio, camera, sensors, GPS,
-cellular, NFC, fingerprint, SEP / Face ID. Phone, Photos and Messages open to a black screen.
+Host tools use Python's standard library. The native shim build needs LLVM tools on `PATH`: `clang`, `ld.lld`, `llvm-objcopy`, `llvm-nm` and `llvm-readelf`. The builder recognises Homebrew’s keg-only LLVM directory; `CC`, `LD`, `OBJCOPY`, `NM` and `READELF` can select explicit executables. Run `mise run check` for Python/shell syntax and image-format tests, or `python3 tools/check.py` directly.
 
-## How it boots
+The XNU kernel builds through `.github/workflows/xnu.yaml`; its pinned build helper selects xnu-8796 with macOS 13.5 dependencies. Dispatch and download a specific run:
 
-```
-ABL (stock Xiaomi bootloader, unlocked)
-  -> fastboot boot shim-boot.img        RAM only; the boot chain stays stock
-       shim (shim/): own MMU setup, reads the live FDT, loads the payload from the ramdisk
-  -> XNU (xnu/patches): UFS, display, touch, keys, USB, RPMh, HID built in
-  -> launchd and the iPhone X userland from userdata
+```sh
+gh workflow run xnu.yaml
+gh run download RUN_ID -n xnu-kernel -D xnu/out
 ```
 
-There is no serial port (the debug UART is wired as SPI). The kernel draws its console into the framebuffer ABL leaves
-at `0x9c000000`, keeps a persistent 4 MiB log ring at the end of `userdata`, and can stream the log over USB
-(`tools/livelog.sh`) so a crash does not need a trip back to recovery.
+Kernel changes are numbered patches under `xnu/patches/`, applied in order. `tools/xnu-cc.py` can replay a compile command against the workflow's `xnu-buildtree` artifact. The inherited patch sequence has no 0082 file; do not renumber it.
 
-## Repository
+Extract the DTB from this phone's stock boot image and supply `d22ap.adt`, the unwrapped D22AP DeviceTree from your iPhone X IPSW. `--product` copies only its `/product` properties; a previous generated ADT containing that node is also accepted. Hardware builds fail without this input. QEMU diagnostic trees (`--qemu`) may omit it. Then build the device tree, payload and shim:
 
-| Path | What |
-| --- | --- |
-| `xnu/patches/` | 0001-0103, applied in order ([how to build and add one](xnu/README.md)) |
-| `shim/` | The bare-metal shim ABL boots |
-| `tools/` | Host tools: device tree, payload, root images, boot image, the phone loop |
-| [INSTALL.md](INSTALL.md) | Getting it onto a phone, step by step |
-| [RECOVERY.md](RECOVERY.md) | Back to Android, and reading the log from recovery |
-| [RESEARCH.md](RESEARCH.md) | Where each missing feature stands, and which port already solves it |
-| [NOTES.md](NOTES.md) | The engineering log: hardware facts, every boot, what broke and why |
-| [DEVICE.md](DEVICE.md) | Test device, BOM variants, stock boot header |
+```sh
+mkdir -p out
+python3 tools/unpack_bootv2.py boot.img dtb/miatoll_unpacked
+python3 tools/mkadt.py out/miatoll.adt --device miatoll --highmem --product d22ap.adt
+tools/cmdline.sh good > out/cmdline.txt
+python3 tools/mkpayload.py xnu/out/kernel.development.sweet out/miatoll.adt out/payload.bin --cmdline-file out/cmdline.txt
+mise run build -- dtb/miatoll_unpacked/dtb out/payload.bin out/shim-boot.img
+```
 
-## Building on macOS
+`mise run build` compiles the shim without a container, rejects absolute C pointers, checks the ARM64 Image header and round-trips the packed kernel, payload and DTB. It does not build XNU or prove the image boots. Direct equivalent: `python3 tools/build-shim.py DTB PAYLOAD OUT`.
 
-`tools/mkiosroot.sh` assumes Linux with `apfs-fuse`, `hfsprogs` and root loop mounts. macOS needs none of that: the DMGs
-attach natively, `newfs_hfs` formats, and only the ownership-sensitive copy runs as root. See
-[INSTALL.md](INSTALL.md) for the commands; the tools are:
+`tools/cmdline.sh good` preserves the arguments from the parent's patch-0098 boot. `tools/cmdline.sh good cpus=1` overrides one argument. The `wifi` profile adds `modem=1 wifi=1`; it requires a matching kernel with patches 0099–0103. Store any experimental `wifi_ssid`/`wifi_pass` arguments in a private command-line file and use `--cmdline-file`; do not put credentials in shell commands or logs. Boot images and payloads containing them are secrets. This interface is not the Apple80211/wland stack and does not establish Wi-Fi controls in Settings.
 
-| Tool | Purpose |
-| --- | --- |
-| `mkiosroot-macos.sh` | root image: `hdiutil` + `newfs_hfs` + one `sudo` |
-| `mkbootimg.py` | boot image packer (AOSP's Ubuntu package imports `gki.*` and does not run) |
-| `build-shim-docker.sh` | cross-compiles the shim in Ubuntu |
-| `root-finalize.sh`, `root-resume.sh` | idempotent tail steps; resume without recopying 11 GiB |
-| `root-variant.sh` | instant `cp -c` clones for userland experiments |
-| `cmdline.sh`, `livelog.sh`, `device.sh`, `askpass.sh` | boot args, live log, phone loop, sudo dialog |
+## Root Image
 
-Two things silently produce an image that looks fine and cannot boot:
+Supply your own iPhone X IPSW. Obtain the OS, SystemOS and AppOS DMG names from its D22AP `BuildManifest.plist` identity. On macOS:
 
-1. `diskutil mount` mounts HFS+ **`noowners`** by default, so every `chown` is discarded. Mount with
-   `-mountOptions owners`; `root-finalize.sh` hard-fails if you forget.
-2. The IPSW DMGs must be attached with `hdiutil -owners on`, or every file reads as `501/20` and `rsync --numeric-ids`
-   copies that lie.
+```sh
+tools/mkiosroot-macos.sh OS.dmg SystemOS.dmg AppOS.dmg out/ios16-root.img 16G
+```
 
-The dyld shared cache must also be **hard-linked** into `System/Library/Caches/com.apple.dyld`, because
-`ignition_level=1` looks at the plain path and on a real device `/private/preboot` is a separate volume.
+The copy needs root permissions. Attach source DMGs with `-owners on` and mount HFS+ with `-mountOptions owners`; otherwise ownership is silently lost. `root-finalize.sh` applies the bring-up changes, invalidates cached MobileGestalt hardware answers and hard-links the dyld cache to its plain system path. `root-resume.sh` resumes a copy and `root-variant.sh` clones an image for experiments. `mkiosroot.sh` is the separate Linux path.
 
-## Not in git
+## Device Workflow
 
-Everything below is gitignored and cannot be shared: it is Apple's, Qualcomm's, or from your own phone.
+Use an unlocked joyeuse with its own recovery image. Keep calibration and partition backups off git. Confirm the actual phone/controller variant first: the upstream FT8756 uses SPI map `clk=55, mosi=54, miso=53, cs=56`; a `synaptics_tcm` node in a stock DT alone does not identify the fitted touch controller.
 
-- **The stock DTB** — `python3 tools/unpack_bootv2.py boot.img dtb/miatoll_unpacked` on your phone's `boot.img`
-- **The iOS root** — the iPhone X iOS 16.7.16 (20H392) IPSW from Apple
-- **The kernel** — `gh run download -n xnu-kernel` from the workflow
-- **Partition backups** — `persist`, `modemst1/2`, `fsg`, `fsc` (calibration and IMEI)
-- **Firmware** for Wi-Fi/cellular work, from the phone's own `modem` partition
+```sh
+fastboot boot recovery.img
+tools/device.sh backup backups/first
+```
 
-## Credits
+The backup command creates a new directory and verifies dump sizes. Preserve it before continuing. After the user approves erasing Android data, flash the root and start a separate terminal for logging:
 
-Built on ios-sweet by dipa-studio, with Wi-Fi/modem from ios-topaz. Licences and provenance in [CREDITS.md](CREDITS.md).
+```sh
+tools/device.sh flash-root out/ios16-root.img
+tools/livelog.sh logs/first-boot.txt
+tools/device.sh boot out/shim-boot.img
+```
+
+`livelog.sh` waits for USB Ethernet and then listens on UDP 5140; its host address assignment requires sudo. Stop it with Ctrl-C. The boot command must run in another terminal while logging waits. First boot reportedly takes several minutes upstream; assess the panel and actual log rather than declaring success from a completed transfer. If USB logging never appears, boot recovery and run `tools/device.sh pull-log logs/first-boot.txt`.
+
+For recovery and restoring Android, see [RECOVERY.md](RECOVERY.md). Do not relock the bootloader with modified software installed.
+
+## Inputs Kept Locally
+
+Apple images and caches, firmware, stock DTBs, device logs and partition backups are excluded from git. Kernel artifacts and built images live in `out/`, `xnu/out/` or the surrounding workspace. Existing outer-workspace patch-0098 artifacts came from upstream Actions run [39477434354](https://github.com/olaffx/ios-miatoll/actions/runs/39477434354); a newer filename or successful build is not a newer hardware result.

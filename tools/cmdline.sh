@@ -2,7 +2,6 @@
 # Trim a kernel's boot arguments for an iteration build.
 #
 #   tools/cmdline.sh BASE [ARG=VAL ...]        print the merged cmdline
-#   tools/cmdline.sh --diff BASE [ARG=VAL ...] show what would change
 #
 # BASE is a file holding a cmdline, or the word "good" for the proven 0098
 # line. Arguments are merged by name, so repeating one replaces it instead of
@@ -14,21 +13,14 @@
 #   keep  panichalt=1      freeze on panic instead of rebooting into Android
 #   keep  ufslogsecs=2     flush the log ring every 2 s (crash survives)
 set -euo pipefail
-diff_mode=0
-if [ "${1:-}" = "--diff" ]; then diff_mode=1; shift; fi
-base=${1:?usage: cmdline.sh [--diff] BASE|good [ARG=VAL ...]}
+base=${1:?usage: cmdline.sh BASE|good [ARG=VAL ...]}
 shift
 
 if [ "$base" = good ]; then
-	# The exact cmdline the 0098 boot used (NOTES.md), minus nothing.
+	# The exact command line reported for the upstream 0098 boot.
 	base_line='debug=0xc serial=3 cpus=8 keepsyms=1 -enable_kprintf_spam -noprogress rd=ufsroot0 unentitled_ios_sim_launch=1 ignition_level=1 wdt_test=no_user_checkin ufsrw=1 rootrw=1 launchd_unsecure_cache=1 wdt=-1 sweetfb_hz=30 sweettouchdelay=5 panichalt=1 ufslogsecs=2 sweetfb_noconsole=1'
 elif [ "$base" = wifi ]; then
-	# 0098's proven line plus the two switches 0099-0103 gate everything on.
-	# Without `wifi=1`, wifi_enabled() in TopazModem.cpp stays false and the
-	# whole 0103 autojoin/en0 block is skipped with no message at all: the
-	# boot looks normal and Wi-Fi just never appears. `modem=1` wakes the
-	# MPSS side, which the WCN3990 firmware path talks to.
-	base_line='debug=0xc serial=3 cpus=8 keepsyms=1 -enable_kprintf_spam -noprogress rd=ufsroot0 unentitled_ios_sim_launch=1 ignition_level=1 wdt_test=no_user_checkin ufsrw=1 rootrw=1 launchd_unsecure_cache=1 wdt=-1 sweetfb_hz=30 sweettouchdelay=5 panichalt=1 ufslogsecs=2 sweetfb_noconsole=1 modem=1 wifi=1'
+	base_line="$("$0" good) modem=1 wifi=1"
 elif [ -f "$base" ]; then
 	base_line=$(cat "$base")
 else

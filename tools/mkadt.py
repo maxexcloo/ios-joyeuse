@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
 """Build the minimal Apple Device Tree that the SWEET xnu needs to boot.
 
-Only what the early boot path actually reads (see NOTES.md); every MMIO
+Only what the early boot path actually reads; every MMIO
 address comes from the sweet live FDT.
 
 Usage:  mkadt.py OUT.adt [--device sweet|miatoll] [--dump] [--qemu] [--highmem]
-                      [--phys 0xBASE] [--mem 0xSIZE]
+                      [--phys 0xBASE] [--mem 0xSIZE] --product D22AP.adt
 
 Device profiles: sweet = Redmi Note 10 Pro (SM7150), miatoll = Redmi Note 9
 Pro (SM7125). Both are the same Atoll platform and the stock miatoll boot.img
@@ -16,13 +16,13 @@ window are per-device. The shipped DTB's memory node is zeroed (ABL fills it
 at load); --phys/--mem override the upper-bank window when the live FDT says
 something else (the shim prints it as MEM0.. lines on a diagnostic boot).
 """
-import hashlib, os, struct, sys
+import argparse, hashlib, os, struct, sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import adt  # noqa: E402
 
 # Kernel-managed RAM (non-highmem, qemu/testing): above every Qualcomm XPU
-# carve-out (see NOTES.md). The phone boots with --highmem; the per-device
+# carve-out. The upstream phone boots with --highmem; the per-device
 # upper-bank windows are in DEVICES below.
 PHYS_BASE = 0xb0000000
 MEM_SIZE = 0x4d000000
@@ -71,16 +71,11 @@ BOOT_MANIFEST_HASH = hashlib.sha384(b'sweet boot manifest').digest()
 # an Apple artifact (kept out of git): extract it from the IPSW with
 #   tools/remotezip.py URL DeviceTree.d22ap.im4p DIR
 #   ipsw img4 im4p extract DIR/Firmware/all_flash/DeviceTree.d22ap.im4p -o d22ap.adt
-D22AP_ADT = os.path.join(os.path.dirname(os.path.abspath(__file__)), '../research/ipsw-x/d22ap.adt')
-
-
-def d22ap_product(path=D22AP_ADT):
+def d22ap_product(path):
     """/product properties of the real D22AP tree, without the syscfg
     placeholders iBoot would fill in (flag bit set) and the node bookkeeping."""
-    if not os.path.exists(path):
-        print(f'warning: {path} missing, no /product node', file=sys.stderr)
-        return None
-    root, _ = adt.parse(open(path, 'rb').read())
+    with open(path, 'rb') as source:
+        root, _ = adt.parse(source.read())
     for c in root.children:
         if dict((k, v) for k, f, v in c.props).get('name') == b'product\0':
             return [(k, v) for k, f, v in c.props if not f and k not in ('name', 'AAPL,phandle')]
@@ -98,11 +93,14 @@ def node(name, props=(), children=()):
     return n
 
 
-def build(seed=None, qemu=False, highmem=False, device='sweet', phys=None, mem=None):
+def build(seed=None, qemu=False, highmem=False, device='sweet', phys=None, mem=None, product=None):
     """qemu=True: same tree, but with QEMU virt's GIC addresses and CNTFRQ (tools/qemu-sweet.py).
     device: key of DEVICES (sweet or miatoll). phys/mem: override the single
     highmem window (hex); read the shim's MEM0.. lines at boot to see the live
     FDT banks, then point the window at the dominant bank if it differs."""
+    if product is None and not qemu:
+        raise ValueError('--product ADT is required for hardware builds')
+    product_props = d22ap_product(product) if product is not None else None
     dev = DEVICES[device]
     if highmem:
         phys_base, mem_size = dev['high_phys'], dev['high_mem']
@@ -257,8 +255,7 @@ def build(seed=None, qemu=False, highmem=False, device='sweet', phys=None, mem=N
         ('opposed-power-vol-buttons', u32(1)),
     ])
 
-    product_props = d22ap_product()
-    product = [node('product', [ph()] + product_props)] if product_props else []
+    product_nodes = [node('product', [ph()] + product_props)] if product_props is not None else []
 
     # Identity of the iPhone X whose userland runs here: compatible[0] is
     # hw.model/hw.target (D22AP), model is hw.machine/hw.product
@@ -273,36 +270,27 @@ def build(seed=None, qemu=False, highmem=False, device='sweet', phys=None, mem=N
         ('manufacturer', cstr('Apple Inc.')),
         ('#address-cells', u32(2)),
         ('#size-cells', u32(2)),
-    ], [chosen, defaults, cpus, arm_io, fbcon, buttons] + product + ([] if qemu else [ufs]))
+    ], [chosen, defaults, cpus, arm_io, fbcon, buttons] + product_nodes + ([] if qemu else [ufs]))
 
 
 if __name__ == '__main__':
-    argv = sys.argv[1:]
-    out = argv.pop(0)
-
-    def flag_value(name):
-        if name not in argv:
-            return None
-        i = argv.index(name)
-        argv.pop(i)
-        return argv.pop(i)
-
-    device = flag_value('--device') or 'sweet'
-    if device not in DEVICES:
-        raise SystemExit(f'unknown --device {device!r}, want one of {sorted(DEVICES)}')
-    qemu = '--qemu' in argv
-    highmem = '--highmem' in argv
-    dump = '--dump' in argv
-    phys_s, mem_s = flag_value('--phys'), flag_value('--mem')
-    phys = int(phys_s, 0) if phys_s else None
-    mem = int(mem_s, 0) if mem_s else None
-    if (phys_s or mem_s) and not highmem:
-        print('warning: --phys/--mem only apply with --highmem', file=sys.stderr)
-    root = build(qemu=qemu, highmem=highmem, device=device, phys=phys, mem=mem)
+    ap = argparse.ArgumentParser(description=__doc__)
+    ap.add_argument('out')
+    ap.add_argument('--device', choices=DEVICES, default='sweet')
+    ap.add_argument('--product', help='D22AP ADT or prior generated ADT containing /product (required for hardware)')
+    ap.add_argument('--qemu', action='store_true')
+    ap.add_argument('--highmem', action='store_true')
+    ap.add_argument('--dump', action='store_true')
+    ap.add_argument('--phys', type=lambda value: int(value, 0))
+    ap.add_argument('--mem', type=lambda value: int(value, 0))
+    args = ap.parse_args()
+    if not args.qemu and args.product is None:
+        ap.error('--product ADT is required for hardware builds')
+    root = build(qemu=args.qemu, highmem=args.highmem, device=args.device,
+                 phys=args.phys, mem=args.mem, product=args.product)
     blob = adt.serialize(root)
-    open(out, 'wb').write(blob)
-    if dump:
+    open(args.out, 'wb').write(blob)
+    if args.dump:
         adt.dump(adt.parse(blob)[0])
-    win = (phys, mem) if phys is not None or mem is not None else None
-    print(f'{out}: {len(blob)} bytes (device={device} highmem={highmem} override={win})',
+    print(f'{args.out}: {len(blob)} bytes (device={args.device} highmem={args.highmem})',
           file=sys.stderr)

@@ -19,18 +19,22 @@ on:
     branches: [main]
     paths:
       - "xnu/patches/**"
-      - ".github/workflows/xnu.yml"
+      - ".github/workflows/xnu.yaml"
 
 concurrency:
-  group: xnu-${{ github.ref }}
+  group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
 env:
   DXB_REPO: https://github.com/blacktop/darwin-xnu-build
+  # renovate: datasource=git-refs depName=https://github.com/blacktop/darwin-xnu-build
   DXB_SHA: 663906528d1cd5ea8fde7de6f16de73db9511549
   MACOS_VERSION: ${{ inputs.macos_version || '13.5' }}
   KERNEL_CONFIG: ${{ inputs.kernel_config || 'DEVELOPMENT' }}
   MACHINE_CONFIG: ${{ inputs.machine_config || 'SWEET' }}
+
+permissions:
+  contents: read
 
 jobs:
   build:
@@ -44,6 +48,8 @@ jobs:
     timeout-minutes: 120
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
 
       - name: Fetch build script
         run: |
@@ -64,8 +70,7 @@ jobs:
           printf '#!/bin/sh\nexit 0\n' | sudo tee /usr/local/bin/xcodes >/dev/null
           sudo chmod +x /usr/local/bin/xcodes
           sw_vers
-          ls -d /Applications/Xcode*.app
-          XC=$(ls -d /Applications/Xcode_*.app | sort -V | head -1)
+          XC=$(printf '%s\n' /Applications/Xcode_*.app | sort -V | head -1)
           echo "DEVELOPER_DIR=$XC/Contents/Developer" >> "$GITHUB_ENV"
           sudo xcode-select -s "$XC"
           xcodebuild -version

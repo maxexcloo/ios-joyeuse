@@ -16,8 +16,7 @@ yourself.
 - **ios-sweet** (dipa-studio, <https://github.com/dipa-studio/ios-sweet>, MIT): the XNU port to the Redmi Note 10 Pro
   this is ultimately forked from. Patches 0001-0081, the shim and most of `tools/` started there.
 - **ios-miatoll** (olaffx, <https://github.com/olaffx/ios-miatoll>, MIT): the Redmi Note 9 port. Patches 0082-0103
-  and the miatoll device profile in `tools/mkadt.py` are its work; this fork adds the macOS build tooling, notes and
-  research.
+  and the miatoll device profile in `tools/mkadt.py` are its work; this fork adds the macOS build tooling and host-side image checks.
 - **XNU** (Apple, APSL 2.0): xnu-8796.141.3.
 - **ios-topaz** (MakrSas, <https://github.com/MakrSas/ios-topaz>): the Redmi Note 12 4G fork of ios-sweet. Patches
   0099-0103 (WCN3990 Wi-Fi/modem, firmware tables, rmtts, `en0`) came from there, with the miatoll hardware constants
@@ -28,8 +27,7 @@ yourself.
 Not all of these are in the tree, but they are where the remaining features are solved or being solved:
 
 - **ios-sweet `codex/native-adreno-metal`** (DC28088, <https://github.com/DC28088/ios-sweet>): Metal on the Adreno 618,
-  working Wi-Fi, Bluetooth, battery/charging, live USB debugging, on the same iOS 16.7.16 + HFS+ root. The reference
-  for the GPU and WLAN work described in `RESEARCH.md`.
+  reported Wi-Fi, Bluetooth, battery/charging and live USB debugging on iOS 16.7.16 + HFS+. These are upstream claims, not local validation.
 - **ios-sweet-gpu** (limonetexd, <https://github.com/limonetexd/ios-sweet-gpu>): the Adreno ring brought up and
   instrumented under XNU, plus frame-pacing patches.
 - **ios-flame / ios-redfin** (<https://github.com/denialofgravity/ios-redfin>): the Pixel 4 / Pixel 5 ports. Their

@@ -19,7 +19,8 @@ status)
 	;;
 backup)
 	dir=${2:?usage: device.sh backup DIR}
-	mkdir -p "$dir"
+	mkdir -p "$(dirname "$dir")"
+	mkdir "$dir"
 	# persist/modemst1/modemst2/fsg/fsc carry per-device calibration: without
 	# them the radio never works again even on stock Android.
 	#
@@ -30,7 +31,7 @@ backup)
 	missing=""
 	persist_missing=0
 	for p in persist modemst1 modemst2 fsg fsc boot dtbo vbmeta modem; do
-		# miatoll is A/B for the boot-chain partitions; accept either name.
+		# Partition names depend on the installed firmware; accept either form.
 		dev=""
 		for cand in "$p" "${p}_a"; do
 			if adb shell "[ -e /dev/block/by-name/$cand ]" 2>/dev/null; then
@@ -41,7 +42,6 @@ backup)
 			echo "absent  $p (no /dev/block/by-name/$p or ${p}_a)"
 			missing="$missing $p"
 			[ "$p" = persist ] && persist_missing=1
-			rm -f "$dir/$p.img"
 			continue
 		fi
 		# `|| true`: under `set -e` a failing command substitution in an
@@ -78,6 +78,8 @@ backup)
 flash-root)
 	img=${2:?usage: device.sh flash-root IMG}
 	[[ -f $img ]] || { echo "no image: $img" >&2; exit 1; }
+	read -r -p "Erase Android user data and flash $img? Type ERASE: " answer
+	[[ $answer = ERASE ]] || { echo "cancelled" >&2; exit 1; }
 	# -S 512M: fastboot both splits the transfer and sparsifies the image.
 	# Xiaomi's ABL often hangs after this finishes -> power + volume down.
 	fastboot -S 512M flash userdata "$img"
