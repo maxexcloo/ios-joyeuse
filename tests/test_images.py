@@ -83,9 +83,10 @@ class Images(unittest.TestCase):
             self.assertRaises(FileNotFoundError),
         ):
             mkadt.build(device="miatoll", product=Path(scratch) / "missing.adt")
-        self.assertNotIn(
-            "product", [node.name for node in mkadt.build(qemu=True).children]
-        )
+        diagnostic = mkadt.build(qemu=True)
+        self.assertNotIn("product", [node.name for node in diagnostic.children])
+        chosen = next(node for node in diagnostic.children if node.name == "chosen")
+        self.assertEqual(chosen.prop("sweet-qemu"), struct.pack("<I", 1))
 
     def test_hardware_adt_preserves_product_properties(self):
         product = mkadt.node("product", [("product-name", b"Test Product\0")])
@@ -106,6 +107,7 @@ class Images(unittest.TestCase):
         self.assertEqual(
             chosen.prop("focaltech-firmware"), b"device-supplied touch firmware"
         )
+        self.assertIsNone(chosen.prop("sweet-qemu"))
 
     def test_root_preparation_invalidates_cached_hardware_answers(self):
         with tempfile.TemporaryDirectory() as scratch:

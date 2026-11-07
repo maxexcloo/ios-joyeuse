@@ -19,6 +19,11 @@ framebuffer using its iso_font into fb.txt and write result.json. This is a
 snapshot of the circular screen, not a complete boot log. --fail-on-panic
 returns 2 when a panic is visible; absence of a panic does not prove boot.
 An undecodable or blank screen returns 3 with --fail-on-panic.
+The matching kernel also enables full circular-console capture in console.txt.
+--expect TEXT requires a console marker and returns 4 when it is missing.
+--disk IMAGE exposes a host HFS image through virtio using disk.qcow2 in OUTDIR;
+all guest changes are confined to that overlay. Use a diagnostic ADT and
+rd=rvblk0 virtio_blk=1 (read-only) or 2 (writable).
 """
 
 import argparse
@@ -153,7 +158,15 @@ def screen_result(screen, unknown):
     return {"status": status, "unknown_glyphs": unknown, "snapshot_only": True}
 
 
-def qmp(sock_path, *cmds, pmemsave=None):
+def console_ring(ring, total):
+    """Decode the kernel's monotonically counted circular console buffer."""
+    if total <= len(ring):
+        return ring[:total]
+    start = total % len(ring)
+    return ring[start:] + ring[:start]
+
+
+def qmp(sock_path, *cmds, pmemsaves=()):
     """Run QEMU human-monitor commands over QMP (synchronous, unlike the echoing HMP socket)."""
     s = socket.socket(socket.AF_UNIX)
     s.connect(sock_path)
@@ -175,10 +188,10 @@ def qmp(sock_path, *cmds, pmemsave=None):
         if "error" in r:
             print(f"qmp {c!r}: {r['error']}", file=sys.stderr)
         out.append(r.get("return", ""))
-    if pmemsave:  # native QMP: HMP's argument parser chokes on '-' in paths
-        r = call("pmemsave", val=pmemsave[0], size=pmemsave[1], filename=pmemsave[2])
+    for address, size, filename in pmemsaves:
+        r = call("pmemsave", val=address, size=size, filename=filename)
         if "error" in r:
-            print(f"qmp pmemsave: {r['error']}", file=sys.stderr)
+            raise RuntimeError(f"qmp pmemsave: {r['error']}")
     s.close()
     return out
 
@@ -209,11 +222,23 @@ def main():
         action="store_true",
         help="exit 2 for a visible panic, 3 for incomplete/blank decoding; requires --kernel",
     )
+    ap.add_argument(
+        "--disk",
+        type=Path,
+        help="HFS image; guest writes use a new disk.qcow2 overlay in OUTDIR",
+    )
+    ap.add_argument(
+        "--expect",
+        action="append",
+        default=[],
+        help="require text in the captured kernel console ring; repeatable",
+    )
     a = ap.parse_args()
-    if a.fail_on_panic and not a.kernel:
-        ap.error("--fail-on-panic requires --kernel")
+    if (a.fail_on_panic or a.expect) and not a.kernel:
+        ap.error("--fail-on-panic and --expect require --kernel")
     payload = Path(a.payload).read_bytes()
     font = None
+    log_symbols = {}
     if a.kernel:
         symbols = subprocess.check_output(
             ["llvm-nm", "--defined-only", a.kernel], text=True
@@ -226,6 +251,10 @@ def main():
         if len(fonts) != 1:
             ap.error("kernel must contain exactly one _iso_font symbol")
         font = payload_data(payload, fonts[0], 256 * 16)
+        for line in symbols.splitlines():
+            fields = line.split()
+            if fields[-1:] and fields[-1] in ("_sweet_log_ring", "_sweet_log_total"):
+                log_symbols[fields[-1]] = int(fields[0], 16)
     os.makedirs(a.outdir, exist_ok=True)
     out = os.path.abspath(a.outdir)
 
@@ -270,6 +299,41 @@ def main():
         "-device",
         f"loader,addr={STUB_PA:#x},cpu-num=0",
     ]
+    if a.disk:
+        overlay = Path(out) / "disk.qcow2"
+        if overlay.exists():
+            ap.error(
+                f"{overlay} exists; use a new output directory to preserve guest writes"
+            )
+        subprocess.run(
+            [
+                "qemu-img",
+                "create",
+                "-q",
+                "-f",
+                "qcow2",
+                "-F",
+                "raw",
+                "-b",
+                str(a.disk.resolve(strict=True)),
+                str(overlay),
+            ],
+            check=True,
+        )
+        cmd += [
+            "-global",
+            "virtio-mmio.force-legacy=false",
+            "-blockdev",
+            json.dumps(
+                {"driver": "file", "filename": str(overlay), "node-name": "disk-file"}
+            ),
+            "-blockdev",
+            json.dumps(
+                {"driver": "qcow2", "file": "disk-file", "node-name": "disk-root"}
+            ),
+            "-device",
+            "virtio-blk-device,drive=disk-root",
+        ]
     if a.gdb:
         cmd += ["-S", "-gdb", "tcp::1234"]
     p = subprocess.Popen(cmd, stdin=subprocess.DEVNULL)
@@ -282,12 +346,24 @@ def main():
         time.sleep(0.2)
     result = {"status": "qemu_exited", "qemu_returncode": p.returncode}
     if p.poll() is None:
+        saves = [(FB_BASE, FB_STRIDE * FB_H, f"{out}/fb.raw")]
+        if len(log_symbols) == 2:
+            virt_base = struct.unpack_from("<Q", payload, 0x10)[0]
+            delta = phys_base - virt_base
+            saves += [
+                (log_symbols["_sweet_log_ring"] + delta, 4 << 20, f"{out}/console.raw"),
+                (
+                    log_symbols["_sweet_log_total"] + delta,
+                    8,
+                    f"{out}/console-total.raw",
+                ),
+            ]
         _, regs, *extra = qmp(
             mon,
             "stop",
             "info registers",
             *a.hmp,
-            pmemsave=(FB_BASE, FB_STRIDE * FB_H, f"{out}/fb.raw"),
+            pmemsaves=saves,
         )
         Path(f"{out}/regs.txt").write_text(
             regs + "".join(f"\n(qemu) {c}\n{r}" for c, r in zip(a.hmp, extra))
@@ -302,6 +378,21 @@ def main():
             Path(f"{out}/fb.txt").write_text(screen)
             result = screen_result(screen, unknown)
         os.unlink(f"{out}/fb.raw")
+        if len(log_symbols) == 2:
+            ring = Path(f"{out}/console.raw").read_bytes()
+            total = struct.unpack("<Q", Path(f"{out}/console-total.raw").read_bytes())[
+                0
+            ]
+            console = console_ring(ring, total).decode("utf-8", errors="replace")
+            Path(f"{out}/console.txt").write_text(console)
+            result["console_bytes"] = total
+            result["console_truncated"] = total > len(ring)
+            if "panic(cpu " in console or "SWEET EARLY PANIC:" in console:
+                result["status"] = "panic"
+            missing = [text for text in a.expect if text not in console]
+            result["missing_expectations"] = missing
+            os.unlink(f"{out}/console.raw")
+            os.unlink(f"{out}/console-total.raw")
     else:
         print(f"qemu exited early: {p.returncode}", file=sys.stderr)
     for f in ("ram.bin",):
@@ -309,6 +400,8 @@ def main():
     Path(f"{out}/result.json").write_text(json.dumps(result, indent=2) + "\n")
     print(json.dumps(result), file=sys.stderr)
     print(f"{out}/fb.png  {out}/regs.txt  {out}/qemu.log", file=sys.stderr)
+    if a.expect and (len(log_symbols) != 2 or result.get("missing_expectations")):
+        return 4
     if a.fail_on_panic and result["status"] == "panic":
         return 2
     if a.fail_on_panic and result["status"] in ("incomplete_decode", "blank_screen"):

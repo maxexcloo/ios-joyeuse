@@ -199,6 +199,9 @@ def build(
         ],
     )
 
+    if qemu:
+        chosen.props.append(("sweet-qemu", 0, u32(1)))
+
     # SWEET SMP: all eight cores in physical-core order (0-5 Cortex-A55,
     # 6-7 Cortex-A76), one homogeneous cluster. The kernel defaults to one
     # and uses cpus=N to select an initial prefix (N <= 8).

@@ -1,0 +1,49 @@
+--- a/bsd/kern/sweet_amfi.c
++++ b/bsd/kern/sweet_amfi.c
+@@ -305,8 +305,37 @@
+ 	}
+ }
+ 
++/* dyld's AMFI policy query: permit @ paths; keep restricted/encrypted limits. */
++#define SWEET_AMFI_DYLD_POLICY_SELF     0x5a
++#define SWEET_AMFI_DYLD_IN_RESTRICTED   (1ULL << 1)
++#define SWEET_AMFI_DYLD_IN_ENCRYPTED    (1ULL << 2)
++#define SWEET_AMFI_DYLD_AT_PATH         (1ULL << 0)
++#define SWEET_AMFI_DYLD_DEVELOPMENT     0xfaULL /* excludes a custom shared cache */
++
++static int
++sweet_amfi_syscall(__unused struct proc *p, int call, user_addr_t arg)
++{
++	if (call != SWEET_AMFI_DYLD_POLICY_SELF) {
++		return ENOPOLICY;
++	}
++	struct {
++		uint64_t input;
++		uint64_t output;
++	} args;
++	int error = copyin(arg, &args, sizeof(args));
++	if (error) {
++		return error;
++	}
++	uint64_t out = SWEET_AMFI_DYLD_AT_PATH;
++	if (!(args.input & (SWEET_AMFI_DYLD_IN_RESTRICTED | SWEET_AMFI_DYLD_IN_ENCRYPTED))) {
++		out |= SWEET_AMFI_DYLD_DEVELOPMENT;
++	}
++	return copyout(&out, (user_addr_t)args.output, sizeof(out));
++}
++
+ static const struct mac_policy_ops sweet_amfi_mac_ops = {
+ 	.mpo_vnode_check_signature = sweet_amfi_vnode_check_signature,
++	.mpo_policy_syscall = sweet_amfi_syscall,
+ };
+ 
+ /*
+@@ -361,7 +390,7 @@
+ static mac_policy_handle_t sweet_sandbox_mac_handle;
+ 
+ static struct mac_policy_conf sweet_amfi_mac_conf = {
+-	.mpc_name = "SWEET AMFI",
++	.mpc_name = "AMFI",
+ 	.mpc_fullname = "SWEET built-in Mobile File Integrity",
+ 	.mpc_ops = &sweet_amfi_mac_ops,
+ };

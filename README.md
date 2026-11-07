@@ -43,6 +43,8 @@ tools/mkiosroot-macos.sh OS.dmg SystemOS.dmg AppOS.dmg out/ios16-root.img 16G
 
 The root tools enforce ownership, apply bring-up preferences, invalidate MobileGestalt's hardware cache and link the dyld cache. `root-resume.sh` resumes a copy; `root-variant.sh` clones an image; `mkiosroot.sh` is the Linux path.
 
+For offline kernel diagnostics, `mkadt.py --qemu` selects the virtual GIC and marks the tree for QEMU-only storage. `qemu-sweet.py --disk IMAGE` creates a separate `disk.qcow2` overlay in its output directory; `rd=rvblk0 virtio_blk=1` selects a read-only HFS root, or `virtio_blk=2` permits guest writes to the overlay. Supply the matching `--kernel` for full `console.txt` capture and `--expect TEXT` for required diagnostic markers. Hardware ADTs never enable this driver.
+
 ## Device Workflow
 
 Use an unlocked joyeuse and its own recovery image. Confirm the fitted touch controller; a stock `synaptics_tcm` node alone does not identify it. Back up first, then approve the `userdata` erase:
@@ -72,6 +74,6 @@ Logging needs sudo for the host USB address. If USB logging fails, boot recovery
 
 Forked from [olaffx/ios-miatoll](https://github.com/olaffx/ios-miatoll) and [dipa-studio/ios-sweet](https://github.com/dipa-studio/ios-sweet), retaining the [MIT License](LICENSE). The miatoll additions use the same licence (Copyright (c) 2026 the ios-miatoll contributors). Patches modify Apple's XNU 8796.141.3 under APSL 2.0; upstream files retain their own licences.
 
-Patches 0001–0081, the shim and most tools originate in ios-sweet; the later miatoll work supplies the board profile and touch support. Networking imports use [MakrSas/ios-topaz](https://github.com/MakrSas/ios-topaz) with miatoll constants. This fork adds native host tooling and image checks. Vendor firmware and Apple's iOS files are supplied locally.
+Patches 0001–0081, the shim and most tools originate in ios-sweet; the later miatoll work supplies the board profile and touch support. Networking imports use [MakrSas/ios-topaz](https://github.com/MakrSas/ios-topaz) with miatoll constants. The dyld policy follows [ios-flame](https://github.com/NWylynko/ios-flame/tree/745c4341af86089efb0df851fa8a27fb8face624); the QEMU virtio block transport derives from [HakiOS](https://github.com/oosexgang/hakios-xnu-kernel/tree/63fc2b4633bac3af8e57dadab9f5a8d4cb940438), retaining its APSL provenance. This fork adds native host tooling and image checks. Vendor firmware and Apple's iOS files are supplied locally.
 
 Reference work, not vendored: [DC28088's native Adreno/Metal branch](https://github.com/DC28088/ios-sweet), [ios-sweet-gpu](https://github.com/limonetexd/ios-sweet-gpu), and the [Pixel ports](https://github.com/denialofgravity/ios-redfin). Their hardware results are upstream reports.

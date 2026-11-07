@@ -1,0 +1,21 @@
+--- a/bsd/kern/sweet_amfi.c
++++ b/bsd/kern/sweet_amfi.c
+@@ -314,7 +314,8 @@
+  * -> mac_priv_grant); on iOS Sandbox/AMFI grant them. Without a grant UIKit
+  * apps die in CoreAnimation setup: work_interval_create(CA_CLIENT) needs
+  * PRIV_WORK_INTERVAL ("Failed to create work interval", SpringBoard).
+- * Grant that one; log the first denial of each other privilege per process.
++ * WebKit also delegates sockets to its client process (SO_DELEGATED).
++ * Grant both bootstrap privileges; log other denials once per process.
+  */
+ #define SWEET_PRIV_LOG_MAX      64
+ static struct {
+@@ -326,7 +327,7 @@
+ static int
+ sweet_sandbox_priv_grant(kauth_cred_t cred __unused, int priv)
+ {
+-	if (priv == PRIV_WORK_INTERVAL) {
++	if (priv == PRIV_WORK_INTERVAL || priv == PRIV_NET_PRIVILEGED_SOCKET_DELEGATE) {
+ 		return 0;
+ 	}
+ 	char name[20];
