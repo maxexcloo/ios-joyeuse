@@ -11,7 +11,7 @@
 # (patch 0075/0076) sets the phone to 192.168.7.2/24 by itself; this only adds
 # 192.168.7.1/24 on the host and listens on UDP 5140.
 #
-# Unlike the upstream Linux script this needs no sudo and no iproute2.
+# Assigning the host address requires sudo.
 set -euo pipefail
 log=${1:-}
 mac=02:00:5e:77:ee:01
@@ -46,6 +46,9 @@ exec python3 -u - "$log" <<'PY'
 import socket, sys, time
 
 path = sys.argv[1] if len(sys.argv) > 1 else ""
+if path:
+    from pathlib import Path
+    Path(path).parent.mkdir(parents=True, exist_ok=True)
 out = open(path, "ab", buffering=0) if path else sys.stdout.buffer
 s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)

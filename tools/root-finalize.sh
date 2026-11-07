@@ -19,6 +19,18 @@ root=${1%/}
 
 repo=$(cd "$(dirname "$0")/.." && pwd)
 
+# Refuse to continue on a noowners mount: chown would be dropped without an
+# error, and the image would boot into a wall of EACCES.
+probe=$root/.ios-redmi-owner-probe
+touch "$probe"; chown 272:272 "$probe"
+if [ "$(stat -f %u "$probe")" != 272 ]; then
+	rm -f "$probe"
+	echo "ERROR: $root is mounted with noowners; ownership cannot be set." >&2
+	echo "       remount with -mountOptions owners and re-run." >&2
+	exit 1
+fi
+rm -f "$probe"
+
 echo "== logd stores, keybag"
 # logd checks the owner and mode of its store (else "BUG IN LIBTRACE: Failed to
 # migrate directory" and a crash loop), and needs the .migrated marker.
@@ -43,18 +55,6 @@ echo "   logd stores + systembag.kb"
 
 echo "== bring-up tweaks (Setup skip, watchdogs, launchd, containers)"
 python3 "$repo/tools/sweet-root-tweaks.py" "$root"
-
-# Refuse to continue on a noowners mount: every chown above would have been
-# dropped without an error, and the image would boot into a wall of EACCES.
-probe=$root/.ios-redmi-owner-probe
-touch "$probe"; chown 272:272 "$probe"
-if [ "$(stat -f %u "$probe")" != 272 ]; then
-	rm -f "$probe"
-	echo "ERROR: $root is mounted with noowners; ownership cannot be set." >&2
-	echo "       remount with -mountOptions owners and re-run." >&2
-	exit 1
-fi
-rm -f "$probe"
 
 echo "== dyld shared cache at the path ignition_level=1 looks in"
 # On a device /private/preboot is its own volume holding the cryptexes, and

@@ -141,6 +141,9 @@ def adt_dram(adt_blob):
 
 
 def build(kernel_path, adt_path, cmdline, ramdisk_path=None):
+    cl = cmdline.encode()
+    if len(cl) >= BOOT_LINE_LENGTH or b"\0" in cl:
+        raise ValueError("kernel command line must fit in 607 bytes without NULs")
     buf = bytearray(open(kernel_path, 'rb').read())
     m = parse_macho(buf)
     nfix = apply_chained_fixups(buf, m)
@@ -183,7 +186,6 @@ def build(kernel_path, adt_path, cmdline, ramdisk_path=None):
     struct.pack_into('<8sII', out, 0, b'SWEETXNU', 1, len(pieces))
     struct.pack_into('<7Q', out, 0x10, virt_base, m['entry'], adt_off, len(adt_blob), kernel_end,
                      PHYS_BASE, MEM_SIZE)
-    cl = cmdline.encode()[:BOOT_LINE_LENGTH - 1]
     out[CMDLINE:CMDLINE + len(cl)] = cl
     for i, t in enumerate(seg_table):
         struct.pack_into('<4Q', out, SEG_TABLE + 32 * i, *t)
@@ -196,11 +198,17 @@ def build(kernel_path, adt_path, cmdline, ramdisk_path=None):
 if __name__ == '__main__':
     ap = argparse.ArgumentParser()
     ap.add_argument('kernel'); ap.add_argument('adt'); ap.add_argument('out')
-    ap.add_argument('--cmdline', default='debug=0xc serial=3 cpus=1 keepsyms=1')
+    cmdline = ap.add_mutually_exclusive_group()
+    cmdline.add_argument('--cmdline', default='debug=0xc serial=3 cpus=1 keepsyms=1')
+    cmdline.add_argument('--cmdline-file', help='read boot arguments locally; never printed')
     ap.add_argument('--ramdisk', help='root image for md0 (boot with rd=md0)')
     a = ap.parse_args()
-    blob, info = build(a.kernel, a.adt, a.cmdline, a.ramdisk)
-    open(a.out, 'wb').write(blob)
+    line = open(a.cmdline_file).read().strip() if a.cmdline_file else a.cmdline
+    blob, info = build(a.kernel, a.adt, line, a.ramdisk)
+    fd = os.open(a.out, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+    with os.fdopen(fd, 'wb') as output:
+        os.fchmod(output.fileno(), 0o600)
+        output.write(blob)
     for k, v in info.items():
         if k != 'segs':
             print(f'{k}: {v}')
