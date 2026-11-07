@@ -47,7 +47,8 @@ constexpr unsigned int kHIDUsage_Csmr_Menu = 0x40;
 constexpr unsigned int kHIDUsage_Csmr_Power = 0x30;
 struct Touch {
     bool down = false, tapping = false, expectTap = false;
-    int previous = 0, strokes = 0, taps = 0;
+    int previous = 0;
+    unsigned int strokes = 0, taps = 0;
     void touch(int finger, bool next, int x, int y) {
         assert(finger == 0 && x >= 0 && x < 1080 && y >= 0 && y < 2400);
         if (!down) {
@@ -103,7 +104,7 @@ int main() {
 """.replace("// PRODUCTION CALLBACK", callback)
             source, binary = work / "hid.cpp", work / "hid"
             source.write_text("#include <initializer_list>\n" + fixture)
-            subprocess.run(
+            result = subprocess.run(
                 [
                     os.environ.get("CXX", "c++"),
                     "-std=c++17",
@@ -115,7 +116,12 @@ int main() {
                     "-o",
                     str(binary),
                 ],
-                check=True,
+                check=False,
                 capture_output=True,
+                text=True,
             )
-            subprocess.run([str(binary)], check=True, capture_output=True)
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+            result = subprocess.run(
+                [str(binary)], check=False, capture_output=True, text=True
+            )
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
