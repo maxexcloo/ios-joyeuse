@@ -1,0 +1,44 @@
+--- a/osfmk/kern/exception.c
++++ b/osfmk/kern/exception.c
+@@ -1001,6 +1001,7 @@
+ {
+ 	vm_map_t map = get_task_map(task);
+ 	uint64_t slide = 0;
++	uint32_t sample_wait = 0;
+ 	int tn = 0;
+ 	thread_t thread;
+ 	vm_shared_region_t sr = vm_shared_region_get(task);
+@@ -1010,6 +1011,7 @@
+ 		vm_shared_region_deallocate(sr);
+ 	}
+ 	printf("SMP %s[%d] slide 0x%llx mh 0x%llx\n", name, pid, slide, task->mach_header_vm_address);
++	(void)PE_parse_boot_argn("sweetsamplewait", &sample_wait, sizeof(sample_wait));
+ 
+ 	task_lock(task);
+ 	queue_iterate(&task->threads, thread, thread_t, task_threads) {
+@@ -1020,6 +1022,25 @@
+ 
+ 		if (ss == NULL || !is_saved_state64(ss)) {
+ 			continue;
++		}
++		if (sample_wait) {
++			int state, result;
++			uint64_t wait_event, continuation, x2, x3, x4;
++			spl_t spl = splsched();
++
++			/* Copy only metadata while locked; console output may block. */
++			thread_lock(thread);
++			state = thread->state;
++			result = thread->wait_result;
++			wait_event = thread->wait_event;
++			continuation = (uint64_t)thread->continuation;
++			x2 = get_saved_state_reg(ss, 2);
++			x3 = get_saved_state_reg(ss, 3);
++			x4 = get_saved_state_reg(ss, 4);
++			thread_unlock(thread);
++			splx(spl);
++			printf("SMK %s t%d state 0x%x result %d wait 0x%llx cont 0x%llx x2 0x%llx x3 0x%llx x4 0x%llx\n",
++			    name, tn, state, result, wait_event, continuation, x2, x3, x4);
+ 		}
+ 		fp = get_saved_state_fp(ss);
+ 		n = snprintf(line, sizeof(line), "SMP %s t%d pc 0x%llx lr 0x%llx sp 0x%llx bt", name, tn++,
