@@ -1,0 +1,42 @@
+--- a/pexpert/arm/pe_serial.c
++++ b/pexpert/arm/pe_serial.c
+@@ -761,29 +761,39 @@
++#if defined(ARM64_BOARD_CONFIG_SWEET)
++extern int sweet_console_muted;
++#endif
++
+ static void
+ fbcon_transmit_data(uint8_t c)
+ {
++#if defined(ARM64_BOARD_CONFIG_SWEET)
++	/* kprintf reaches this framebuffer serial callback without _cnputs. */
++	if (sweet_console_muted && !panic_active()) {
++		return;
++	}
++#endif
+ 	if (c == '\r') {
+ 		fbcon_col = 0;
+ 		return;
+ 	}
+ 	if (c == '\n') {
+ 		fbcon_newline();
+ 		return;
+ 	}
+ 	if (fbcon_col >= fbcon_cols) {
+ 		fbcon_newline();
+ 	}
+ 	const unsigned char *glyph = iso_font + c * 16;
+ 	uint32_t x0 = fbcon_col * 8 * FBCON_SCALE, y0 = fbcon_row * 16 * FBCON_SCALE;
+ 	for (uint32_t gy = 0; gy < 16; gy++) {
+ 		for (uint32_t sy = 0; sy < FBCON_SCALE; sy++) {
+ 			volatile uint32_t *line = fbcon_base + (y0 + gy * FBCON_SCALE + sy) * (fbcon_stride / 4) + x0;
+ 			for (uint32_t gx = 0; gx < 8; gx++) {
+ 				uint32_t px = (glyph[gy] & (1u << gx)) ? FBCON_FG : FBCON_BG;
+ 				for (uint32_t sx = 0; sx < FBCON_SCALE; sx++) {
+ 					line[gx * FBCON_SCALE + sx] = px;
+ 				}
+ 			}
+ 		}
+ 	}
+ 	fbcon_col++;
+ }
