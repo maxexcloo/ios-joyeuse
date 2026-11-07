@@ -14,6 +14,8 @@ The [native Adreno donor](https://github.com/DC28088/ios-sweet/tree/67448d2151ef
 
 Host tools use Python's standard library and LLVM (`clang`, `ld.lld`, `llvm-objcopy`, `llvm-nm`, `llvm-readelf`). Homebrew LLVM is recognised; `CC`, `LD`, `OBJCOPY`, `NM` and `READELF` can select explicit tools.
 
+The shared checks compile the production WLAN packet callbacks from the numbered patches and exercise Ethernet/BPF delivery, chained buffers and allocation failures under address and undefined-behaviour sanitizers (using `CXX` or `c++`).
+
 ```sh
 mise run check
 gh workflow run xnu.yaml
@@ -31,7 +33,7 @@ python3 tools/mkpayload.py xnu/out/kernel.development.sweet out/miatoll.adt out/
 mise run build -- out/stock/dtb out/payload.bin out/shim-boot.img
 ```
 
-The shim build verifies relocation safety, the ARM64 header and packed sections. `cmdline.sh good` preserves upstream 0098 arguments; append `cpus=1` to override one. The experimental `wifi` profile needs patches 0099–0103. Put credentials in a private command-line file. This Ethernet interface does not provide Wi-Fi controls in Settings.
+The shim build verifies relocation safety, the ARM64 header and packed sections. `cmdline.sh good` preserves upstream 0098 arguments; append `cpus=1` to override one. The experimental `wifi` profile needs patches 0099–0104. Put credentials in a private command-line file. This Ethernet interface does not provide Wi-Fi controls in Settings.
 
 Build the root using the OS/SystemOS/AppOS DMGs named by the IPSW's D22AP `BuildManifest.plist`:
 
