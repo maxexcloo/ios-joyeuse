@@ -33,6 +33,7 @@ import os
 import plistlib
 import shutil
 import sys
+import uuid
 
 BUILD, VERSION = "20H392", "16.7.16"
 MOBILE = 501
@@ -170,6 +171,51 @@ def capabilities(root):
         print("MobileGestalt: hardware capabilities will rebuild at next boot")
 
 
+def network(root):
+    # Kernel-only en0 has no IOEthernetInterface for InterfaceNamer to configure.
+    # prefsmon publishes this service; IPConfiguration matches its BSD name.
+    path = os.path.join(
+        root, "Library/Preferences/SystemConfiguration/preferences.plist"
+    )
+    data = load(path) if os.path.exists(path) else {"Version": 1}
+    services = data.setdefault("NetworkServices", {})
+    if any(
+        s.get("Interface", {}).get("DeviceName") == "en0" for s in services.values()
+    ):
+        print("network: preserving existing en0 service")
+        return
+    service = str(uuid.uuid4()).upper()
+    name = "Miatoll WLAN"
+    services[service] = {
+        "IPv4": {"ConfigMethod": "DHCP"},
+        "IPv6": {"ConfigMethod": "Automatic"},
+        "Interface": {
+            "DeviceName": "en0",
+            "Hardware": "Ethernet",
+            "Type": "Ethernet",
+            "UserDefinedName": name,
+        },
+        "UserDefinedName": name,
+    }
+    if "CurrentSet" not in data:
+        data["CurrentSet"] = "/Sets/" + str(uuid.uuid4()).upper()
+    set_id = data["CurrentSet"].split("/")[-1]
+    current = data.setdefault("Sets", {}).setdefault(
+        set_id, {"UserDefinedName": "Automatic"}
+    )
+    net = current.setdefault("Network", {})
+    net.setdefault("Service", {})[service] = {"__LINK__": "/NetworkServices/" + service}
+    order = (
+        net.setdefault("Global", {})
+        .setdefault("IPv4", {})
+        .setdefault("ServiceOrder", [])
+    )
+    order.append(service)
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    save(path, data, 0, 0, 0o644)
+    print("network: en0 DHCP service prepared (radio still requires wifi boot profile)")
+
+
 def main():
     if len(sys.argv) != 2 or not os.path.isdir(
         os.path.join(sys.argv[1], "System/Library/xpc")
@@ -181,6 +227,7 @@ def main():
     activation(root)
     audio(root)
     capabilities(root)
+    network(root)
     merge_pref(
         root,
         "com.apple.migration",

@@ -6,6 +6,10 @@ Experimental iOS 16.7.16 (20H392, iPhone X userland) on the Redmi Note 9 Pro (`j
 
 **No iOS boot on the local phone.** Upstream patch 0098 reports SpringBoard, FT8756 touch, buttons, eight CPU cores, UFS and software rendering. The native shim and image packing have been checked offline. Wi-Fi association/DHCP/traffic, GPU acceleration and other hardware remain unverified here. The port disables substantial parts of Apple's security model.
 
+Patches 0104–0105 correct the WLAN Ethernet/BPF receive contract and a 32-bit physical-page shift that truncated cache maintenance above 4 GiB. Both modified consumers compile locally for ARM64; neither establishes radio or GPU operation. Root preparation seeds an Ethernet DHCP service for the kernel-only `en0`, which configd cannot automatically name through IOKit. The service uses Apple's [PreferencesMonitor](https://github.com/apple-oss-distributions/configd/blob/585b7f2fca293f4642d21d15c5daf187f63c4796/Plugins/PreferencesMonitor/prefsmon.c) and [IPConfiguration](https://github.com/apple-oss-distributions/bootp/blob/63cb751ca6a4e148704a701090481fd9a895dda0/IPConfiguration.bproj/ipconfigd.c) schema.
+
+The [native Adreno donor](https://github.com/DC28088/ios-sweet/tree/67448d2151ef7520a8c4417a62a85823c62b30b5) shares the A618 architecture, but its GPU support spans power, firmware, SMMU, kernel and userland changes. Its WLAN carve-outs and SMMU stream ID differ from the saved stock DTB (also described by Linux's [SM7125 board](https://github.com/torvalds/linux/blob/master/arch/arm64/boot/dts/qcom/sm7125-xiaomi-common.dtsi) and [SC7180 base](https://github.com/torvalds/linux/blob/master/arch/arm64/boot/dts/qcom/sc7180.dtsi)); importing that stack requires board validation. The software-rendered baseline remains the next boot experiment.
+
 ## Build & Check
 
 Host tools use Python's standard library and LLVM (`clang`, `ld.lld`, `llvm-objcopy`, `llvm-nm`, `llvm-readelf`). Homebrew LLVM is recognised; `CC`, `LD`, `OBJCOPY`, `NM` and `READELF` can select explicit tools.

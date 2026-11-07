@@ -18,8 +18,8 @@
 # exactly like out/ios16-root-miatoll.img.
 set -euo pipefail
 repo=$(cd "$(dirname "$0")/.." && pwd)
-baseimg=$repo/../out/ios16-root-miatoll.img
-vdir=$repo/../out/variants
+baseimg=$repo/out/ios16-root-miatoll.img
+vdir=$repo/out/variants
 cmd=${1:-}; name=${2:-}
 
 need_name() { [[ -n $name ]] || { echo "give a variant name" >&2; exit 2; }; }
@@ -64,7 +64,7 @@ mount|shell|tweak)
 		shift 2
 		for s in "$@"; do
 			echo "== $s $mnt" >&2
-			(cd "$repo/.." && sudo "$repo/tools/$s" "$mnt") || exit 1
+			(cd "$repo" && sudo "$repo/tools/$s" "$mnt") || exit 1
 		done
 	fi
 	;;

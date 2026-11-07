@@ -2,12 +2,14 @@
 
 import hashlib
 import importlib.util
+import plistlib
 import struct
 import subprocess
 import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "tools"))
@@ -120,6 +122,73 @@ class Images(unittest.TestCase):
             self.assertFalse(stale.exists())
             self.assertEqual(unrelated.read_bytes(), b"keep")
             root_tweaks.capabilities(scratch)
+
+    def test_network_service_is_published_in_current_set(self):
+        with (
+            tempfile.TemporaryDirectory() as scratch,
+            mock.patch.object(root_tweaks.os, "chown"),
+        ):
+            path = (
+                Path(scratch)
+                / "Library/Preferences/SystemConfiguration/preferences.plist"
+            )
+            path.parent.mkdir(parents=True)
+            existing = {
+                "CurrentSet": "/Sets/EXISTING",
+                "NetworkServices": {"USB": {"Interface": {"DeviceName": "ue0"}}},
+                "Sets": {
+                    "EXISTING": {
+                        "Network": {
+                            "Global": {"IPv4": {"ServiceOrder": ["USB"]}},
+                            "Service": {"USB": {"__LINK__": "/NetworkServices/USB"}},
+                        }
+                    }
+                },
+                "Version": 1,
+            }
+            path.write_bytes(plistlib.dumps(existing))
+            root_tweaks.network(scratch)
+            data = plistlib.loads(path.read_bytes())
+            service = next(k for k in data["NetworkServices"] if k != "USB")
+            self.assertEqual(
+                data["NetworkServices"]["USB"], existing["NetworkServices"]["USB"]
+            )
+            wlan = data["NetworkServices"][service]
+            self.assertEqual(wlan["Interface"]["DeviceName"], "en0")
+            self.assertEqual(wlan["Interface"]["Type"], "Ethernet")
+            self.assertEqual(wlan["IPv4"], {"ConfigMethod": "DHCP"})
+            network = data["Sets"]["EXISTING"]["Network"]
+            self.assertEqual(
+                network["Service"][service], {"__LINK__": "/NetworkServices/" + service}
+            )
+            self.assertEqual(
+                network["Global"]["IPv4"]["ServiceOrder"], ["USB", service]
+            )
+            before = path.read_bytes()
+            root_tweaks.network(scratch)
+            self.assertEqual(path.read_bytes(), before)
+
+    def test_network_service_seeds_empty_root(self):
+        with (
+            tempfile.TemporaryDirectory() as scratch,
+            mock.patch.object(root_tweaks.os, "chown") as chown,
+        ):
+            root_tweaks.network(scratch)
+            path = (
+                Path(scratch)
+                / "Library/Preferences/SystemConfiguration/preferences.plist"
+            )
+            data = plistlib.loads(path.read_bytes())
+            current = data["Sets"][data["CurrentSet"].split("/")[-1]]
+            service = current["Network"]["Global"]["IPv4"]["ServiceOrder"][0]
+            self.assertEqual(
+                current["Network"]["Service"][service]["__LINK__"],
+                "/NetworkServices/" + service,
+            )
+            self.assertEqual(
+                data["NetworkServices"][service]["IPv6"], {"ConfigMethod": "Automatic"}
+            )
+            chown.assert_called_once_with(str(path), 0, 0)
 
     def test_radio_profile_inherits_boot_arguments(self):
         script = str(ROOT / "tools/cmdline.sh")
