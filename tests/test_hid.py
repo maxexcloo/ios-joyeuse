@@ -46,19 +46,25 @@ struct IOTimerEventSource {
 constexpr unsigned int kHIDUsage_Csmr_Menu = 0x40;
 constexpr unsigned int kHIDUsage_Csmr_Power = 0x30;
 struct Touch {
-    bool down = false;
-    int previous = 0, strokes = 0;
+    bool down = false, tapping = false, expectTap = false;
+    int previous = 0, strokes = 0, taps = 0;
     void touch(int finger, bool next, int x, int y) {
         assert(finger == 0 && x >= 0 && x < 1080 && y >= 0 && y < 2400);
-        if (!down) { assert(next && y > 2350); ++strokes; }
-        else { assert(y <= previous); }
-        if (!next) assert(y < 800);
+        if (!down) {
+            assert(next);
+            tapping = y <= 2350;
+            if (tapping) { assert(expectTap && x == 670 && y == 850); ++taps; }
+            else { ++strokes; }
+        } else if (!tapping) { assert(y <= previous); }
+        if (tapping) assert(x == 670 && y == 850);
+        if (!next && !tapping) assert(y < 800);
         down = next; previous = y;
     }
 } touch;
 Touch *gSweetTouch = &touch;
 struct SweetHIDButtons : OSObject {
-    bool fTestSwipe = false, down = false;
+    bool fTestSwipe = false, fTestTap = false, down = false;
+    int fTestTapX = 670, fTestTapY = 850;
     unsigned int fTestCount = 0, fTestSecs = 30, presses = 0;
     void key(unsigned int usage, bool next) {
         assert(usage == (fTestSwipe ? kHIDUsage_Csmr_Power : kHIDUsage_Csmr_Menu));
@@ -70,9 +76,13 @@ struct SweetHIDButtons : OSObject {
 // PRODUCTION CALLBACK
 int main() {
     for (bool swipe : {false, true}) {
+      for (bool tap : {false, true}) {
+        if (tap && !swipe) continue;
         touch = Touch{};
+        touch.expectTap = tap;
         SweetHIDButtons buttons;
         buttons.fTestSwipe = swipe;
+        buttons.fTestTap = tap;
         IOTimerEventSource timer;
         unsigned int callbacks = 0;
         while (timer.pending) {
@@ -82,6 +92,8 @@ int main() {
         }
         assert(buttons.presses > 0 && !buttons.down && !touch.down);
         assert((touch.strokes > 0) == swipe);
+        assert((touch.taps > 0) == tap);
+      }
     }
 }
 """.replace("// PRODUCTION CALLBACK", callback)
