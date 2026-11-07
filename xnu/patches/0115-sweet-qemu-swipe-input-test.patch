@@ -1,0 +1,57 @@
+--- a/iokit/Kernel/arm/hid/SweetHID.cpp
++++ b/iokit/Kernel/arm/hid/SweetHID.cpp
+@@ -20,6 +20,7 @@
+ #include <IOKit/IOService.h>
+ #include <IOKit/IOTimerEventSource.h>
+ #include <libkern/c++/OSArray.h>
++#include <pexpert/device_tree.h>
+ #include <pexpert/pexpert.h>
+ 
+ #include "IOHIDEventService.h"
+@@ -339,6 +340,7 @@
+ 	IOTimerEventSource *fTest;
+ 	UInt32 fTestSecs;
+ 	UInt32 fTestCount;
++	bool fTestSwipe;
+ };
+ OSDefineMetaClassAndStructors(SweetHIDButtons, IOHIDEventService);
+ 
+@@ -385,6 +387,14 @@
+ 		return false;
+ 	}
+ 	if (PE_parse_boot_argn("sweethidtest", &fTestSecs, sizeof(fTestSecs)) && fTestSecs) {
++		uint32_t swipe = 0;
++		DTEntry chosen;
++		const uint32_t *qemu = NULL;
++		unsigned int size = 0;
++		fTestSwipe = PE_parse_boot_argn("sweethidswipe", &swipe, sizeof(swipe)) && swipe == 1 &&
++		    SecureDTLookupEntry(NULL, "/chosen", &chosen) == kSuccess &&
++		    SecureDTGetProperty(chosen, "sweet-qemu", (const void **)&qemu, &size) == kSuccess &&
++		    size == sizeof(*qemu) && *qemu == 1;
+ 		fTest = IOTimerEventSource::timerEventSource(this, &SweetHIDButtons::testFired);
+ 		if (fTest && _hidWorkLoop->addEventSource(fTest) == kIOReturnSuccess) {
+ 			fTest->setTimeoutMS(fTestSecs * 1000);
+@@ -413,6 +423,23 @@
+ SweetHIDButtons::testFired(OSObject *owner, IOTimerEventSource *sender)
+ {
+ 	SweetHIDButtons *self = (SweetHIDButtons *)owner;
++
++	if (self->fTestSwipe) {
++		/* Wake, then swipe from the bottom edge through the real HID queue. */
++		unsigned int phase = self->fTestCount % 16;
++		if (phase < 2) {
++			self->key(kHIDUsage_Csmr_Menu, phase == 0);
++		} else if (gSweetTouch) {
++			int y = phase == 15 ? 590 : 2390 - (int)(phase - 2) * 150;
++			gSweetTouch->touch(0, phase != 15, 540, y);
++		}
++		if (++self->fTestCount < 16 * 30) {
++			unsigned int ms = phase == 0 ? 100 : phase == 1 ? 1000 :
++			    phase == 15 ? self->fTestSecs * 1000 : 40;
++			sender->setTimeoutMS(ms);
++		}
++		return;
++	}
+ 
+ 	/*
+ 	 * Home (Menu) press, then the release 100 ms later; Setup's "Hello"

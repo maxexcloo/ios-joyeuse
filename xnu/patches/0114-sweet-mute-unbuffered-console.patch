@@ -1,0 +1,15 @@
+--- a/osfmk/console/serial_console.c
++++ b/osfmk/console/serial_console.c
+@@ -607,6 +607,12 @@
+ void
+ console_write_unbuffered(char c)
+ {
++#if defined(ARM64_BOARD_CONFIG_SWEET)
++	sweet_log_append(&c, 1);
++	if (sweet_console_muted && !panic_active()) {
++		return;
++	}
++#endif
+ 	_cnputc(c, true);
+ }
+ 
