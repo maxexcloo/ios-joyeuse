@@ -166,7 +166,7 @@ def console_ring(ring, total):
     return ring[start:] + ring[:start]
 
 
-def qmp(sock_path, *cmds, pmemsaves=()):
+def qmp(sock_path, *cmds, pmemsaves=(), shutdown=False):
     """Run QEMU human-monitor commands over QMP (synchronous, unlike the echoing HMP socket)."""
     s = socket.socket(socket.AF_UNIX)
     s.connect(sock_path)
@@ -192,6 +192,8 @@ def qmp(sock_path, *cmds, pmemsaves=()):
         r = call("pmemsave", val=address, size=size, filename=filename)
         if "error" in r:
             raise RuntimeError(f"qmp pmemsave: {r['error']}")
+    if shutdown:
+        call("quit")
     s.close()
     return out
 
@@ -226,6 +228,12 @@ def main():
         "--disk",
         type=Path,
         help="HFS image; guest writes use a new disk.qcow2 overlay in OUTDIR",
+    )
+    ap.add_argument(
+        "--disk-format",
+        choices=("raw", "qcow2"),
+        default="raw",
+        help="format of --disk; qcow2 can resume an earlier guest overlay",
     )
     ap.add_argument(
         "--expect",
@@ -313,13 +321,14 @@ def main():
                 "-f",
                 "qcow2",
                 "-F",
-                "raw",
+                a.disk_format,
                 "-b",
                 str(a.disk.resolve(strict=True)),
                 str(overlay),
             ],
             check=True,
         )
+        overlay.chmod(0o600)
         cmd += [
             "-global",
             "virtio-mmio.force-legacy=false",
@@ -364,12 +373,12 @@ def main():
             "info registers",
             *a.hmp,
             pmemsaves=saves,
+            shutdown=True,
         )
         Path(f"{out}/regs.txt").write_text(
             regs + "".join(f"\n(qemu) {c}\n{r}" for c, r in zip(a.hmp, extra))
         )
-        p.kill()
-        p.wait()
+        p.wait(timeout=10)
         raw = Path(f"{out}/fb.raw").read_bytes()
         write_png(f"{out}/fb.png", raw)
         result = {"status": "not_decoded"}

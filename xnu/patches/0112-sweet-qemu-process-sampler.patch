@@ -1,0 +1,15 @@
+--- a/iokit/bsddev/IOKitBSDInit.cpp
++++ b/iokit/bsddev/IOKitBSDInit.cpp
+@@ -779,6 +779,12 @@
+ 		}
+ 		strlcpy(rootName, rdBootVar, rootNameSize);
+ 		IOLog("BSD root: %s, major %d, minor %d\n", rootName, major(*root), minor(*root));
++		char samples[128];
++		if (PE_parse_boot_argn("sweetsample", samples, sizeof(samples)) &&
++		    samples[0] != '\0' && samples[0] != '-') {
++			extern void sweet_sample_start(void);
++			sweet_sample_start();
++		}
+ 		*oflags = 0;
+ 		goto iofrootx;
+ 	}

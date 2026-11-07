@@ -4,7 +4,7 @@ Experimental iOS 16.7.16 (20H392, iPhone X userland) on the Redmi Note 9 Pro (`j
 
 ## Status
 
-**No iOS boot on the local phone.** Upstream patch 0098 reports SpringBoard, FT8756 touch, buttons, eight CPU cores, UFS and software rendering. The native shim and image packing have been checked offline. A synthetic QEMU RAM-root reaches the static diagnostic PID 1 and repeated console/syscall heartbeats; Apple userland remains unexercised locally. Wi-Fi association/DHCP/traffic, GPU acceleration and other hardware remain unverified here. The port disables substantial parts of Apple's security model.
+**No iOS boot on the local phone.** Upstream patch 0098 reports SpringBoard, FT8756 touch, buttons, eight CPU cores, UFS and software rendering. The native shim and image packing have been checked offline. QEMU runs the static PID 1 diagnostic, including dyld policy and non-root socket-delegation checks. A virtual HFS root mounts and runs Apple launchd and backboardd; the current userland test reaches the Apple logo. Wi-Fi association/DHCP/traffic, GPU acceleration and other hardware remain unverified here. The port disables substantial parts of Apple's security model.
 
 Patches 0104–0105 correct the WLAN Ethernet/BPF receive contract and a 32-bit physical-page shift that truncated cache maintenance above 4 GiB. Both modified consumers compile locally for ARM64; neither establishes radio or GPU operation. Root preparation seeds an Ethernet DHCP service for the kernel-only `en0`, which configd cannot automatically name through IOKit. The service uses Apple's [PreferencesMonitor](https://github.com/apple-oss-distributions/configd/blob/585b7f2fca293f4642d21d15c5daf187f63c4796/Plugins/PreferencesMonitor/prefsmon.c) and [IPConfiguration](https://github.com/apple-oss-distributions/bootp/blob/63cb751ca6a4e148704a701090481fd9a895dda0/IPConfiguration.bproj/ipconfigd.c) schema.
 
@@ -43,7 +43,7 @@ tools/mkiosroot-macos.sh OS.dmg SystemOS.dmg AppOS.dmg out/ios16-root.img 16G
 
 The root tools enforce ownership, apply bring-up preferences, invalidate MobileGestalt's hardware cache and link the dyld cache. `root-resume.sh` resumes a copy; `root-variant.sh` clones an image; `mkiosroot.sh` is the Linux path.
 
-For offline kernel diagnostics, `mkadt.py --qemu` selects the virtual GIC and marks the tree for QEMU-only storage. `qemu-sweet.py --disk IMAGE` creates a separate `disk.qcow2` overlay in its output directory; `rd=rvblk0 virtio_blk=1` selects a read-only HFS root, or `virtio_blk=2` permits guest writes to the overlay. Supply the matching `--kernel` for full `console.txt` capture and `--expect TEXT` for required diagnostic markers. Hardware ADTs never enable this driver.
+For offline kernel diagnostics, `mkadt.py --qemu` selects the virtual GIC and marks the tree for QEMU-only storage. `qemu-sweet.py --disk IMAGE` creates a separate `disk.qcow2` overlay in its output directory; `rd=rvblk0 virtio_blk=1` selects a read-only HFS root, or `virtio_blk=2` permits guest writes to the overlay. Supply the matching `--kernel` for full `console.txt` capture and `--expect TEXT` for required diagnostic markers. Use `--disk-format qcow2` with a previous overlay to preserve guest progress in a new output directory. An explicit `sweetsample=SpringBoard,backboardd,lsd,installd` enables process-stack diagnostics for the virtual root. Hardware ADTs never enable this driver.
 
 ## Device Workflow
 
