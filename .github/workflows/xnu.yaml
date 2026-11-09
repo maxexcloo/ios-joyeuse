@@ -1,4 +1,4 @@
-name: xnu
+name: XNU
 
 on:
   workflow_dispatch:
@@ -51,7 +51,7 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: Fetch build script
+      - name: Fetch Build Script
         run: |
           git init -q dxb
           git -C dxb fetch -q --depth 1 "$DXB_REPO" "$DXB_SHA"
@@ -83,7 +83,7 @@ jobs:
           MAKEFLAGS: ${{ inputs.keep_going == 'false' && '' || '-k' }}
         run: bash build.sh
 
-      - name: Package build tree for local compiles
+      - name: Package Build Tree for Local Compiles
         if: always()
         run: |
           # Generated headers, config option headers, mig output and the patched
@@ -105,7 +105,7 @@ jobs:
           path: buildtree.tgz
           retention-days: 7
 
-      - name: Inspect closed KDK support libs
+      - name: Inspect Closed KDK Support Libs
         if: always()
         run: |
           mkdir -p out/kdk-libs
