@@ -4,7 +4,7 @@
   xnu-cc.py LOG BUILDTREE [FILTER ...]
 
 LOG        `gh run view --log` output of an xnu.yaml run (VERBOSE=YES make)
-BUILDTREE  extracted xnu-buildtree artifact (build/xnu.obj, xnu/, fakeroot/, ...)
+BUILDTREE  extracted joyeuse-xnu-buildtree artifact (build/xnu.obj, xnu/, fakeroot/, ...)
 FILTER     only compile sources whose path contains one of these strings
            a full path relative to xnu/ also compiles newly added sources
 

@@ -1,19 +1,10 @@
-# device dumps: persist/modemst/fsg hold IMEI + calibration; live DT holds the serial
-backup/
-dtb/
-recovery/
-# third-party/Apple sources fetched for reading
-research/
-shim/out/
-xnu/out/
-xnu/out-*/
-
-# miatoll: stock boot.img, IPSW parts, root images and boot images built by tools/
-out/
-ipsw/
+# apple, vendor and phone data: never committed
 backups/
-logs/
-*.simg
-*.ipsw
-*.dmg
 fw/
+ipsw/
+logs/
+research/
+
+# generated images, kernels and build output
+out/
+xnu/out/

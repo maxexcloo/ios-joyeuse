@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """Run host behaviour tests without a phone, firmware or a kernel build."""
 
 import subprocess
@@ -7,5 +6,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 subprocess.run(
-    [sys.executable, "-m", "unittest", "discover", "-s", "tests"], cwd=ROOT, check=True
+    [sys.executable, "-B", "-m", "unittest", "discover", "-s", "tests"],
+    cwd=ROOT,
+    check=True,
 )

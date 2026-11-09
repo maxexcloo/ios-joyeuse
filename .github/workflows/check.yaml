@@ -9,8 +9,8 @@ permissions:
   contents: read
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
+  group: ${{ github.workflow }}-${{ github.ref }}
 
 jobs:
   check:
@@ -22,6 +22,6 @@ jobs:
       - name: Set Up Shared Tools & Tasks
         uses: maxexcloo/dotfiles/.github/actions/mise@main
         with:
-          tools: actionlint node@24 npm:renovate oxfmt python ruff shellcheck
+          tools: actionlint node@24 npm:renovate oxfmt ruff shellcheck
       - name: Run Checks
         run: mise run check
