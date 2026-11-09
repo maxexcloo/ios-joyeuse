@@ -3,17 +3,12 @@
 #
 #   tools/mkiosroot-macos.sh OS.dmg SYSTEMOS.dmg APPOS.dmg OUT.img [SIZE]
 #
-# The upstream tools/mkiosroot.sh assumes a Linux host with apfs-fuse, hfsprogs
-# and root loop mounts. On macOS none of that is needed: the DMGs attach with
-# hdiutil (native APFS) and the volume is made with newfs_hfs, both of which
-# work as an ordinary user. The single privileged step is the copy itself, so
-# that owners/modes match iOS (root, _logd 272, mobile 501); that is what the
-# one sudo prompt is for.
-#
-# Produces a RAW HFS+ image, not a sparse one: `fastboot -S 512M flash
-# userdata` sparsifies it during the transfer, so img2simg is not needed.
+# The DMGs attach with hdiutil (native APFS) and the volume is made with
+# newfs_hfs, both as an ordinary user. The single privileged step is the copy,
+# so that owners/modes match iOS (root, _logd 272, mobile 501); that is what
+# the one sudo prompt is for. Produces a raw HFS+ image.
 set -euo pipefail
-[[ $# -ge 4 ]] || { sed -n '2,16p' "$0"; exit 2; }
+[[ $# -ge 4 ]] || { sed -n '2,9p' "$0"; exit 2; }
 
 os=$(cd "$(dirname "$1")" && pwd)/$(basename "$1")
 sysos=$(cd "$(dirname "$2")" && pwd)/$(basename "$2")

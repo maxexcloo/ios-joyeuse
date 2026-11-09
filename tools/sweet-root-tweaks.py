@@ -1,13 +1,11 @@
 #!/usr/bin/env python3
-"""Apply the SWEET bring-up changes to an iOS root made by tools/mkiosroot.sh.
+"""Apply the SWEET bring-up changes to an iOS root made by tools/mkiosroot-macos.sh.
 
   sudo sweet-root-tweaks.py MOUNTED_ROOT
 
-MOUNTED_ROOT is the HFS+ image mounted read-write (Linux: run
-`fsck.hfsplus -fy` on the image, then `mount -t hfsplus -o loop,force`).
-Run as root (it writes root/mobile owned files). Idempotent. This is what
-turned the plain mkiosroot.sh output into the images that reach the home
-screen in the parent port:
+MOUNTED_ROOT is the HFS+ image mounted read-write. Run as root (it writes
+root/mobile owned files). Idempotent. tools/root-finalize.sh runs it; these
+are the changes that reached the home screen in the parent port:
 
   launchd.plist   _PanicOnCrash -> _PanicOnCrasX (a crashing daemon must not
                   panic the system); CommCenter jobs removed (no baseband: it
