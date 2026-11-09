@@ -77,12 +77,12 @@ class Images(unittest.TestCase):
 
     def test_hardware_adt_requires_product_input(self):
         with self.assertRaisesRegex(ValueError, "--product"):
-            mkadt.build(device="miatoll")
+            mkadt.build(device="joyeuse")
         with (
             tempfile.TemporaryDirectory() as scratch,
             self.assertRaises(FileNotFoundError),
         ):
-            mkadt.build(device="miatoll", product=Path(scratch) / "missing.adt")
+            mkadt.build(device="joyeuse", product=Path(scratch) / "missing.adt")
         diagnostic = mkadt.build(qemu=True)
         self.assertNotIn("product", [node.name for node in diagnostic.children])
         chosen = next(node for node in diagnostic.children if node.name == "chosen")
@@ -104,10 +104,10 @@ class Images(unittest.TestCase):
             path = Path(scratch) / "product.adt"
             path.write_bytes(adt.serialize(source))
             with self.assertRaisesRegex(ValueError, "--touch-firmware"):
-                mkadt.build(device="miatoll", product=path)
+                mkadt.build(device="joyeuse", product=path)
             firmware = Path(scratch) / "touch.bin"
             firmware.write_bytes(b"device-supplied touch firmware")
-            root = mkadt.build(device="miatoll", product=path, touch_firmware=firmware)
+            root = mkadt.build(device="joyeuse", product=path, touch_firmware=firmware)
         generated = next(node for node in root.children if node.name == "product")
         self.assertEqual(generated.prop("product-name"), b"Test Product\0")
         self.assertIsNone(generated.prop("placeholder"))

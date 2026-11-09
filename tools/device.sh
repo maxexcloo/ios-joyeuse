@@ -1,5 +1,5 @@
 #!/bin/bash
-# Device-side helpers for the miatoll iOS port. Nothing here runs by itself;
+# Device-side helpers for the joyeuse iOS port. Nothing here runs by itself;
 # the destructive steps (flash userdata, boot) are separate commands.
 #
 #   device.sh status            fastboot/adb visibility

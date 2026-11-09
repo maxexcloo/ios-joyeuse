@@ -1,6 +1,6 @@
 #!/bin/sh
 # Read the SWEET console log (kernel patch 0047) from a phone booted into
-# OrangeFox recovery (fastboot boot recovery/recovery.img; adb root shell).
+# OrangeFox recovery (fastboot boot RECOVERY.img; adb root shell).
 #   tools/sweet-log-pull.sh OUT.txt
 # Only reads: the last 1025 blocks (4 KiB) of the userdata partition.
 set -eu

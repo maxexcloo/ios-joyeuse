@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Build the miatoll ARM64 shim with LLVM and pack a verified boot image v2."""
+"""Build the joyeuse ARM64 shim with LLVM and pack a verified boot image v2."""
 
 import argparse
 import hashlib

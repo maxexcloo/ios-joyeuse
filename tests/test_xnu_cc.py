@@ -23,7 +23,7 @@ class CompileReplay(unittest.TestCase):
                 "    json.dumps(sys.argv[1:]))\n"
             )
             compiler.chmod(0o755)
-            for fork in ("ios-miatoll", "ios-sweet"):
+            for fork in ("ios-joyeuse", "ios-sweet"):
                 with self.subTest(fork=fork):
                     bt = work / fork
                     cdir = bt / "build/xnu.obj/iokit/DEVELOPMENT"

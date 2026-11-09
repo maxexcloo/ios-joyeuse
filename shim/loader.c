@@ -82,7 +82,7 @@ const char *loader_boot(uintptr_t dtb)
 
 	/* Bring-up diagnostic: print the live RAM banks ABL handed us (the
 	 * shipped DTB has /memory zeroed; a 0 here means ABL did not fill it).
-	 * miatoll's stock DTB memory node is also zeroed, so trust these lines
+	 * joyeuse's stock DTB memory node is also zeroed, so trust these lines
 	 * over any assumed layout. */
 	/* banks[] holds (base,size) pairs; the buffer holds 8 pairs. */
 	uint64_t banks[16];

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-"""Pack an Android boot image header v2 -- the subset ABL on miatoll needs.
+"""Pack an Android boot image header v2 -- the subset ABL on joyeuse needs.
 
-  mkbootimg.py OUT --kernel Image --ramdisk payload.bin --dtb miatoll.dtb
+  mkbootimg.py OUT --kernel Image --ramdisk payload.bin --dtb joyeuse.dtb
                 [--base 0] [--kernel_offset 0x8000] [--ramdisk_offset 0x1000000]
                 [--tags_offset 0x100] [--dtb_offset 0x1f00000] [--pagesize 4096]
                 [--os_version 15.0.0] [--os_patch_level 2026-09]

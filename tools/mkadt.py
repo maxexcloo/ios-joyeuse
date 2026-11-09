@@ -4,11 +4,11 @@
 Only what the early boot path actually reads; every MMIO
 address comes from the sweet live FDT.
 
-Usage:  mkadt.py OUT.adt [--device sweet|miatoll] [--dump] [--qemu] [--highmem]
+Usage:  mkadt.py OUT.adt [--device sweet|joyeuse] [--dump] [--qemu] [--highmem]
                       [--phys 0xBASE] [--mem 0xSIZE] --product D22AP.adt
 
-Device profiles: sweet = Redmi Note 10 Pro (SM7150), miatoll = Redmi Note 9
-Pro (SM7125). Both are the same Atoll platform and the stock miatoll boot.img
+Device profiles: sweet = Redmi Note 10 Pro (SM7150), joyeuse = Redmi Note 9
+Pro (SM7125). Both are the same Atoll platform and the stock joyeuse boot.img
 DTB has GIC (0x17a00000), UFS (0x1d84000), QUP/GENI, SPMI (0xc440000), GCC,
 PSHOLD and the ABL splash framebuffer (0x9c000000) at exactly the sweet
 addresses, so only the identity strings, the synthetic ECID and the RAM
@@ -48,7 +48,7 @@ QEMU_GICD, QEMU_GICR, QEMU_TIMEBASE = 0x08000000, 0x080A0000, 62500000
 QEMU_VTIMER_INTID = 27
 
 # Per-device identity. 'xiaomi,sweet' must stay at its current compatible
-# index for SweetPlatformExpert (0016 IONameMatch); miatoll keeps it after
+# index for SweetPlatformExpert (0016 IONameMatch); joyeuse keeps it after
 # its own name and only overrides the SoC string.
 DEVICES = {
     "sweet": {
@@ -58,7 +58,7 @@ DEVICES = {
         "high_phys": 0x100000000,
         "high_mem": 0xFCC00000,
     },
-    "miatoll": {
+    "joyeuse": {
         "compat": (
             "D22AP",
             "iPhone10,3",
@@ -126,15 +126,15 @@ def build(
     bluetooth_mac=None,
 ):
     """qemu=True: same tree, but with QEMU virt's GIC addresses and CNTFRQ (tools/qemu-sweet.py).
-    device: key of DEVICES (sweet or miatoll). phys/mem: override the single
+    device: key of DEVICES (sweet or joyeuse). phys/mem: override the single
     highmem window (hex); read the shim's MEM0.. lines at boot to see the live
     FDT banks, then point the window at the dominant bank if it differs."""
     if product is None and not qemu:
         raise ValueError("--product ADT is required for hardware builds")
     product_props = d22ap_product(product) if product is not None else None
-    if device == "miatoll" and not qemu and touch_firmware is None:
+    if device == "joyeuse" and not qemu and touch_firmware is None:
         raise ValueError(
-            "--touch-firmware PATH is required for miatoll hardware builds"
+            "--touch-firmware PATH is required for joyeuse hardware builds"
         )
     dev = DEVICES[device]
     if highmem:
@@ -336,7 +336,7 @@ def build(
     # An absent pmap-max-asids property selects XNU's own MAX_ASIDS default.
     # No effaceable storage: keybagd then reads /private/var/keybags/systembag.kb
     # as a plain plist instead of decrypting it with the effaceable key.
-    if device == "miatoll" and not qemu:
+    if device == "joyeuse" and not qemu:
         chosen.props.append(
             ("focaltech-firmware", 0, Path(touch_firmware).read_bytes())
         )
@@ -362,7 +362,7 @@ def build(
     # Identity of the iPhone X whose userland runs here: compatible[0] is
     # hw.model/hw.target (D22AP), model is hw.machine/hw.product
     # (iPhone10,3). 'xiaomi,sweet' stays for SweetPlatformExpert matching;
-    # miatoll adds its own name after it (see DEVICES).
+    # joyeuse adds its own name after it (see DEVICES).
     return node(
         "device-tree",
         [
@@ -391,7 +391,7 @@ if __name__ == "__main__":
     )
     ap.add_argument(
         "--touch-firmware",
-        help="device-supplied FT8756 firmware (required for miatoll hardware)",
+        help="device-supplied FT8756 firmware (required for joyeuse hardware)",
     )
     ap.add_argument("--qemu", action="store_true")
     ap.add_argument(

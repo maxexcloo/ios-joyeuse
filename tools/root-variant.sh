@@ -15,10 +15,10 @@
 # if you flash only the changed image.
 #
 # Variants live in out/variants/NAME.img and are RAW HFS+ images, flashable
-# exactly like out/ios16-root-miatoll.img.
+# exactly like out/ios16-root.img.
 set -euo pipefail
 repo=$(cd "$(dirname "$0")/.." && pwd)
-baseimg=$repo/out/ios16-root-miatoll.img
+baseimg=$repo/out/ios16-root.img
 vdir=$repo/out/variants
 cmd=${1:-}; name=${2:-}
 

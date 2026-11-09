@@ -183,7 +183,7 @@ def network(root):
         print("network: preserving existing en0 service")
         return
     service = str(uuid.uuid4()).upper()
-    name = "Miatoll WLAN"
+    name = "Joyeuse WLAN"
     services[service] = {
         "IPv4": {"ConfigMethod": "DHCP"},
         "IPv6": {"ConfigMethod": "Automatic"},
