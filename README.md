@@ -17,7 +17,7 @@ Experimental iOS 16.7.16 (`20H392`, iPhone X userland) on the Redmi Note 9 Pro (
 
 ## Build & Check
 
-Host tools use Python (activated by Mise), its standard library and LLVM (`clang`, `ld.lld`, `llvm-objcopy`, `llvm-nm`, `llvm-readelf`). Homebrew LLVM is recognised; `CC`, `CXX`, `LD`, `OBJCOPY`, `NM` and `READELF` select explicit tools. Checks include the WLAN packet callbacks compiled from the numbered patches under address and undefined-behaviour sanitisers.
+Host tools use Python (activated by Mise), its standard library and LLVM (`clang`, `ld.lld`, `llvm-objcopy`, `llvm-nm`, `llvm-readelf`). Homebrew LLVM is recognised; `CC`, `CXX`, `LD`, `OBJCOPY`, `NM` and `READELF` select explicit tools.
 
 ```sh
 mise run check
@@ -25,7 +25,7 @@ gh workflow run xnu.yaml
 gh run download RUN_ID -n joyeuse-xnu -D xnu/out
 ```
 
-Hardware ADTs need the stock boot image, the unwrapped iPhone X `d22ap.adt`, the phone's FT8756 firmware and its Wi-Fi and Bluetooth addresses (six raw bytes each), all in `fw/`. The addresses avoid MobileGestalt's network-controller wait; they do not enable either radio. Keep these inputs and the generated ADT and payload private.
+Hardware ADTs need the stock boot image, the unwrapped iPhone X `d22ap.adt`, the phone's FT8756 firmware and its Wi-Fi and Bluetooth addresses (six raw bytes each), all in `fw/`. Keep these inputs and the generated ADT and payload private.
 
 ```sh
 mkdir -p out
@@ -46,7 +46,7 @@ tools/mkiosroot-macos.sh ipsw/OS.dmg ipsw/SystemOS.dmg ipsw/AppOS.dmg out/ios16-
 
 `root-resume.sh` finishes an interrupted image in place, `root-variant.sh` makes copy-on-write variants of `out/ios16-root.img`, and `sparsediff.py OLD NEW OUT.simg` writes only the changed blocks for reflashing.
 
-For offline diagnostics, `mkadt.py --qemu` builds a virtual-GIC tree with synthetic MAC identities. `qemu-sweet.py --disk IMAGE --kernel KERNEL` boots it with a separate `disk.qcow2` overlay; `rd=rvblk0 virtio_blk=1` selects a read-only HFS root and `virtio_blk=2` permits overlay writes. `sweetsample=NAMES` (plus `sweetsamplewait=1`) samples process stacks, and `sweethidtest=30` with optional `sweethidswipe=1`, `sweethidtapx`/`sweethidtapy` and `sweethidcycles=N` drives synthetic input. Hardware ADTs never enable virtual storage or synthetic input.
+For offline diagnostics, `mkadt.py --qemu` builds a virtual tree and `qemu-sweet.py --disk IMAGE --kernel KERNEL` boots it with a separate `disk.qcow2` overlay; `rd=rvblk0 virtio_blk=1` selects a read-only HFS root and `virtio_blk=2` permits overlay writes.
 
 ## Device Workflow
 
@@ -72,12 +72,12 @@ If USB logging fails, boot recovery and run `tools/device.sh pull-log logs/first
 
 ## Inputs Kept Locally
 
-`fw/` holds the stock boot image, `d22ap.adt`, the device's `/vendor/firmware/focaltech_ts_fw_huaxing.bin` and the MAC files. Apple's IPSW parts stay in `ipsw/`, partition backups in `backups/`, phone logs in `logs/` and fetched reference sources in `research/`. Generated images and kernels use `out/` and `xnu/out/`.
+Firmware inputs stay in `fw/` (the touch firmware comes from the phone's `/vendor/firmware/`), Apple's IPSW parts in `ipsw/`, partition backups in `backups/`, phone logs in `logs/` and fetched reference sources in `research/`. Generated images and kernels use `out/` and `xnu/out/`.
 
 ## Credits & Licences
 
 Forked from [olaffx/ios-miatoll](https://github.com/olaffx/ios-miatoll) and [dipa-studio/ios-sweet](https://github.com/dipa-studio/ios-sweet), retaining the [MIT License](LICENSE). The miatoll additions use the same licence (Copyright (c) 2026 the ios-miatoll contributors). Patches modify Apple's XNU 8796.141.3 under APSL 2.0; upstream files retain their own licences.
 
-Patches 0001–0081, the shim and most tools originate in ios-sweet; the later miatoll work supplies the board profile and touch support. Networking imports use [MakrSas/ios-topaz](https://github.com/MakrSas/ios-topaz) with miatoll constants. The dyld policy follows [ios-flame](https://github.com/NWylynko/ios-flame/tree/745c4341af86089efb0df851fa8a27fb8face624); the QEMU virtio block transport derives from [HakiOS](https://github.com/oosexgang/hakios-xnu-kernel/tree/63fc2b4633bac3af8e57dadab9f5a8d4cb940438), retaining its APSL provenance. This fork adds native host tooling and image checks. Vendor firmware and Apple's iOS files are supplied locally.
+Patches 0001–0081, the shim and most tools originate in ios-sweet; the later miatoll work supplies the board profile and touch support. Networking imports use [MakrSas/ios-topaz](https://github.com/MakrSas/ios-topaz) with miatoll constants. The dyld policy follows [ios-flame](https://github.com/NWylynko/ios-flame/tree/745c4341af86089efb0df851fa8a27fb8face624); the QEMU virtio block transport derives from [HakiOS](https://github.com/oosexgang/hakios-xnu-kernel/tree/63fc2b4633bac3af8e57dadab9f5a8d4cb940438), retaining its APSL provenance. Vendor firmware and Apple's iOS files are supplied locally.
 
-Reference work, not vendored: [DC28088's native Adreno/Metal branch](https://github.com/DC28088/ios-sweet), [ios-sweet-gpu](https://github.com/limonetexd/ios-sweet-gpu), the [Pixel ports](https://github.com/denialofgravity/ios-redfin) and Linux's [SM7125 board](https://github.com/torvalds/linux/blob/master/arch/arm64/boot/dts/qcom/sm7125-xiaomi-common.dtsi) and [SC7180 base](https://github.com/torvalds/linux/blob/master/arch/arm64/boot/dts/qcom/sc7180.dtsi) trees. Their hardware results are upstream reports.
+Reference work, not vendored: [DC28088's native Adreno/Metal branch](https://github.com/DC28088/ios-sweet), [ios-sweet-gpu](https://github.com/limonetexd/ios-sweet-gpu), the [Pixel ports](https://github.com/denialofgravity/ios-redfin) and Linux's [SM7125 board](https://github.com/torvalds/linux/blob/master/arch/arm64/boot/dts/qcom/sm7125-xiaomi-common.dtsi) and [SC7180 base](https://github.com/torvalds/linux/blob/master/arch/arm64/boot/dts/qcom/sc7180.dtsi) trees.
