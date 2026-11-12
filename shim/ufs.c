@@ -1,5 +1,5 @@
 /*
- * Milestone 5 probe: can we talk to the internal UFS that ABL booted from?
+ * Read-only probe of the internal UFS that ABL booted from.
  *
  * Runs with the MMU off (all memory Device, so DMA is coherent with no cache
  * maintenance). Dumps the UFSHCI registers ABL left behind and, if the host
