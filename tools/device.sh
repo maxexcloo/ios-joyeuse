@@ -78,11 +78,22 @@ backup)
 flash-root)
 	img=${2:?usage: device.sh flash-root IMG}
 	[[ -f $img ]] || { echo "no image: $img" >&2; exit 1; }
+	devices=$(fastboot devices)
+	[[ $(printf '%s\n' "$devices" | grep -c .) = 1 ]] || {
+		echo "Need exactly one fastboot device; refusing to select another port's phone." >&2
+		exit 1
+	}
+	device=$(printf '%s\n' "$devices" | awk '{print $1}')
+	product=$(fastboot -s "$device" getvar product 2>&1 | awk '$1 == "product:" {print $2}')
+	[[ $product = joyeuse ]] || {
+		echo "Connected fastboot device reports product '$product', not joyeuse; refusing to flash." >&2
+		exit 1
+	}
 	read -r -p "Erase Android user data and flash $img? Type ERASE: " answer
 	[[ $answer = ERASE ]] || { echo "cancelled" >&2; exit 1; }
 	# -S 512M: fastboot both splits the transfer and sparsifies the image.
 	# Xiaomi's ABL often hangs after this finishes -> power + volume down.
-	fastboot -S 512M flash userdata "$img"
+	fastboot -s "$device" -S 512M flash userdata "$img"
 	;;
 boot)
 	img=${2:?usage: device.sh boot IMG}
