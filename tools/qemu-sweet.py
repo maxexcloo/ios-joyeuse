@@ -37,11 +37,11 @@ import time
 import zlib
 from pathlib import Path
 
-FB_BASE, FB_W, FB_H = 0x9C000000, 1080, 2400
-FB_STRIDE = FB_W * 4
-PAGE = 0x4000
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from mkadt import FB, FB_H, FB_STRIDE, FB_W
+from mkpayload import BOOT_LINE_LENGTH, CMDLINE, PAGE, SEG_TABLE
+
 STUB_PA = 0x40200000  # above the dtb QEMU places at RAM base
-BOOT_LINE_LENGTH = 608
 
 
 def build_image(payload):
@@ -51,7 +51,7 @@ def build_image(payload):
     virt_base, entry_va, adt_off, adt_size, kernel_end, phys_base, mem_size = (
         struct.unpack_from("<7Q", payload, 0x10)
     )
-    cmdline = payload[0x48 : 0x48 + BOOT_LINE_LENGTH]
+    cmdline = payload[CMDLINE : CMDLINE + BOOT_LINE_LENGTH]
     delta = phys_base - virt_base
     adt_pa = kernel_end + delta
     ba_pa = (adt_pa + adt_size + PAGE - 1) & ~(PAGE - 1)
@@ -59,7 +59,7 @@ def build_image(payload):
     img = bytearray(top - phys_base)
     for i in range(nsegs):
         vmaddr, _vmsize, foff, fsize = struct.unpack_from(
-            "<4Q", payload, 0x2A8 + 32 * i
+            "<4Q", payload, SEG_TABLE + 32 * i
         )
         o = vmaddr + delta - phys_base
         img[o : o + fsize] = payload[foff : foff + fsize]
@@ -74,7 +74,7 @@ def build_image(payload):
         phys_base,
         mem_size,
         top,
-        FB_BASE,
+        FB,
         1,
         FB_STRIDE,
         FB_W,
@@ -118,7 +118,7 @@ def payload_data(payload, va, size):
     """Read initialized segment bytes by VA (the payload has no slide)."""
     nsegs = struct.unpack_from("<I", payload, 12)[0]
     for i in range(nsegs):
-        vmaddr, _, foff, fsize = struct.unpack_from("<4Q", payload, 0x2A8 + 32 * i)
+        vmaddr, _, foff, fsize = struct.unpack_from("<4Q", payload, SEG_TABLE + 32 * i)
         if vmaddr <= va and va + size <= vmaddr + fsize:
             offset = foff + va - vmaddr
             return payload[offset : offset + size]
@@ -355,7 +355,7 @@ def main():
         time.sleep(0.2)
     result = {"status": "qemu_exited", "qemu_returncode": p.returncode}
     if p.poll() is None:
-        saves = [(FB_BASE, FB_STRIDE * FB_H, f"{out}/fb.raw")]
+        saves = [(FB, FB_STRIDE * FB_H, f"{out}/fb.raw")]
         if len(log_symbols) == 2:
             virt_base = struct.unpack_from("<Q", payload, 0x10)[0]
             delta = phys_base - virt_base
