@@ -17,6 +17,8 @@ import struct
 import sys
 from pathlib import Path
 
+OS_PATCH_LEVEL = "2026-09"
+OS_VERSION = "15.0.0"
 PAGE = 4096
 
 
@@ -72,7 +74,7 @@ def main():
         0x100,
         PAGE,
         2,
-        os_version_field("15.0.0", "2026-09"),
+        os_version_field(OS_VERSION, OS_PATCH_LEVEL),
         b"\0" * 16,
         cmd,
         digest,
@@ -91,7 +93,7 @@ def main():
     print(
         f"{a.out}: header v2 page {PAGE} "
         f"kernel {len(kernel)} ramdisk {len(ramdisk)} dtb {len(dtb)} "
-        "os 15.0.0/2026-09 "
+        f"os {OS_VERSION}/{OS_PATCH_LEVEL} "
         f"total {len(pad(hdr, PAGE) + body)}"
     )
 
