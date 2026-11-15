@@ -1,7 +1,7 @@
 # iOS Joyeuse
 
 - Scope is Redmi Note 9 Pro / joyeuse / SM7125. README owns observed status; hardware results inherited from the parent ports are upstream evidence, not local results.
-- `xnu/patches/` owns kernel changes. Add numbered patches rather than editing a disposable build tree; preserve the inherited numbering, including its missing 0082. `tools/mkadt.py` owns the ADT and device profiles, `shim/` the native loader and `tools/sweet-root-tweaks.py` the root changes.
+- `xnu/patches/` owns kernel changes. Add numbered patches rather than editing a disposable build tree; preserve the inherited numbering, including its missing 0082. `tools/mkadt.py` owns the joyeuse ADT, `shim/` the native loader and `tools/sweet-root-tweaks.py` the root changes.
 - Keep upstream identifiers such as `xiaomi,miatoll`, the `SWEET` machine config and `sweet*` boot arguments; patches match on them.
 - Keep vendor firmware out of kernel patches and Git; `mkadt.py` carries FT8756 firmware from `--touch-firmware`.
 - Bring-up uses `fastboot boot` and writes only `userdata` for the root. Preserve the bootloader, recovery, modem and calibration partitions.

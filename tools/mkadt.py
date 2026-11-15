@@ -1,20 +1,12 @@
 #!/usr/bin/env python3
 """Build the minimal Apple Device Tree that the SWEET xnu needs to boot.
 
-Only what the early boot path actually reads; every MMIO
-address comes from the sweet live FDT.
-
-Usage:  mkadt.py OUT.adt [--device sweet|joyeuse] [--dump] [--qemu] [--highmem]
+Usage:  mkadt.py OUT.adt [--dump] [--qemu] [--highmem]
                       [--phys 0xBASE] [--mem 0xSIZE] --product D22AP.adt
 
-Device profiles: sweet = Redmi Note 10 Pro (SM7150), joyeuse = Redmi Note 9
-Pro (SM7125). Both are the same Atoll platform and the stock joyeuse boot.img
-DTB has GIC (0x17a00000), UFS (0x1d84000), QUP/GENI, SPMI (0xc440000), GCC,
-PSHOLD and the ABL splash framebuffer (0x9c000000) at exactly the sweet
-addresses, so only the identity strings, the synthetic ECID and the RAM
-window are per-device. The shipped DTB's memory node is zeroed (ABL fills it
-at load); --phys/--mem override the upper-bank window when the live FDT says
-something else (the shim prints it as MEM0.. lines on a diagnostic boot).
+The stock joyeuse DTB shares the upstream sweet MMIO addresses. Its memory
+node is zeroed (ABL fills it at load); --phys/--mem override the upper-bank
+window when the live FDT differs (the shim prints it as MEM0.. lines).
 """
 
 import argparse
@@ -28,8 +20,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import adt
 
 # Kernel-managed RAM (non-highmem, qemu/testing): above every Qualcomm XPU
-# carve-out. The upstream phone boots with --highmem; the per-device
-# upper-bank windows are in DEVICES below.
+# carve-out. Hardware builds use the upper bank with --highmem.
 PHYS_BASE = 0xB0000000
 MEM_SIZE = 0x4D000000
 # /arm-io children are relative to this; it must not be 0 (serial_init bails)
@@ -47,34 +38,20 @@ VTIMER_INTID = 19
 QEMU_GICD, QEMU_GICR, QEMU_TIMEBASE = 0x08000000, 0x080A0000, 62500000
 QEMU_VTIMER_INTID = 27
 
-# Per-device identity. 'xiaomi,sweet' must stay at its current compatible
-# index for SweetPlatformExpert (0016 IONameMatch); joyeuse keeps it after
-# its own name and only overrides the SoC string.
-DEVICES = {
-    "sweet": {
-        "compat": ("D22AP", "iPhone10,3", "xiaomi,sweet", "qcom,sm7150", "AppleARM"),
-        "ecid": 0x5357454554000001,  # 'SWEET' + 1, synthetic
-        # 6 GiB: low 2G @0x80000000 + upper bank (live FDT memory node)
-        "high_phys": 0x100000000,
-        "high_mem": 0xFCC00000,
-    },
-    "joyeuse": {
-        "compat": (
-            "D22AP",
-            "iPhone10,3",
-            "xiaomi,sweet",
-            "xiaomi,miatoll",
-            "qcom,sm7125",
-            "AppleARM",
-        ),
-        "ecid": 0x4D4941544F4C4C01,  # 'MIATOLL' + 1, synthetic
-        # Live FDT has 3 banks: 2G @0x80000000, 4G @0x100000000, 1G @0x200000000.
-        # /chosen carries one dram window, so point it at the dominant 4G bank. The shim prints all 3 as MEM0.. at
-        # boot; --phys/--mem override if a board's layout differs.
-        "high_phys": 0x100000000,
-        "high_mem": 0x100000000,
-    },
-}
+# 'xiaomi,sweet' must stay at its compatible index for SweetPlatformExpert.
+COMPAT = (
+    "D22AP",
+    "iPhone10,3",
+    "xiaomi,sweet",
+    "xiaomi,miatoll",
+    "qcom,sm7125",
+    "AppleARM",
+)
+ECID = 0x4D4941544F4C4C01  # 'MIATOLL' + 1, synthetic
+# Live FDT: 2G @0x80000000, 4G @0x100000000, 1G @0x200000000.
+# /chosen carries one dram window, so use the dominant 4G bank.
+HIGH_PHYS = 0x100000000
+HIGH_MEM = 0x100000000
 
 BOOT_MANIFEST_HASH = hashlib.sha384(b"sweet boot manifest").digest()
 
@@ -83,7 +60,7 @@ BOOT_MANIFEST_HASH = hashlib.sha384(b"sweet boot manifest").digest()
 # derives product type, device class, home-button-less UI, artwork etc. from
 # the root identity and /product of the real D22AP device tree. That tree is
 # an Apple artifact (kept out of git): extract it from the IPSW with
-#   tools/remotezip.py URL DeviceTree.d22ap.im4p DIR
+#   ipsw extract --remote --pattern 'DeviceTree[.]d22ap[.]im4p$' -o DIR URL
 def d22ap_product(path):
     """/product properties of the real D22AP tree, without the syscfg
     placeholders iBoot would fill in (flag bit set) and the node bookkeeping."""
@@ -114,7 +91,6 @@ def build(
     seed=None,
     qemu=False,
     highmem=False,
-    device="sweet",
     phys=None,
     mem=None,
     product=None,
@@ -123,19 +99,18 @@ def build(
     bluetooth_mac=None,
 ):
     """qemu=True: same tree, but with QEMU virt's GIC addresses and CNTFRQ (tools/qemu-sweet.py).
-    device: key of DEVICES (sweet or joyeuse). phys/mem: override the single
+    phys/mem: override the single
     highmem window (hex); read the shim's MEM0.. lines at boot to see the live
     FDT banks, then point the window at the dominant bank if it differs."""
     if product is None and not qemu:
         raise ValueError("--product ADT is required for hardware builds")
     product_props = d22ap_product(product) if product is not None else None
-    if device == "joyeuse" and not qemu and touch_firmware is None:
+    if not qemu and touch_firmware is None:
         raise ValueError(
             "--touch-firmware PATH is required for joyeuse hardware builds"
         )
-    dev = DEVICES[device]
     if highmem:
-        phys_base, mem_size = dev["high_phys"], dev["high_mem"]
+        phys_base, mem_size = HIGH_PHYS, HIGH_MEM
     else:
         phys_base, mem_size = PHYS_BASE, MEM_SIZE
     if phys is not None:
@@ -176,7 +151,7 @@ def build(
             # files), so e.g. DataMigration never records LastSystemVersion and
             # migrates on every boot. Synthetic ECID (not the phone's); chip-id
             # of the A11 that the iPhone X userland expects.
-            ("unique-chip-id", struct.pack("<Q", dev["ecid"])),
+            ("unique-chip-id", struct.pack("<Q", ECID)),
             ("chip-id", u32(0x8015)),
             # Security status as on a dev-fused, undemoted board (tuple 0,0,1,1):
             # MobileGestalt reads these from /chosen, and mobileactivationd's
@@ -201,7 +176,7 @@ def build(
     if qemu:
         chosen.props.append(("sweet-qemu", 0, u32(1)))
         # MobileGestalt derives the virtual UniqueDeviceID without waiting for a NIC.
-        tail = (dev["ecid"] & 0xFFFFFFFF).to_bytes(4, "big")
+        tail = (ECID & 0xFFFFFFFF).to_bytes(4, "big")
         for name, tag in (("bluetooth0", 2), ("ethernet0", 3), ("wifi0", 1)):
             chosen.props.append(("mac-address-" + name, 0, bytes((2, tag)) + tail))
 
@@ -329,7 +304,7 @@ def build(
         ],
     )
 
-    if device == "joyeuse" and not qemu:
+    if not qemu:
         chosen.props.append(
             ("focaltech-firmware", 0, Path(touch_firmware).read_bytes())
         )
@@ -359,12 +334,12 @@ def build(
     # Identity of the iPhone X whose userland runs here: compatible[0] is
     # hw.model/hw.target (D22AP), model is hw.machine/hw.product
     # (iPhone10,3). 'xiaomi,sweet' stays for SweetPlatformExpert matching;
-    # joyeuse adds its own name after it (see DEVICES).
+    # joyeuse adds its own name after it.
     return node(
         "device-tree",
         [
             ph(),
-            ("compatible", b"".join(cstr(s) for s in dev["compat"])),
+            ("compatible", b"".join(cstr(s) for s in COMPAT)),
             ("model", cstr("iPhone10,3")),
             ("target-type", cstr("D22")),
             ("target-sub-type", cstr("D22AP")),
@@ -381,7 +356,6 @@ def build(
 if __name__ == "__main__":
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("out")
-    ap.add_argument("--device", choices=DEVICES, default="sweet")
     ap.add_argument(
         "--product",
         help="D22AP ADT or prior generated ADT containing /product (required for hardware)",
@@ -408,7 +382,6 @@ if __name__ == "__main__":
     root = build(
         qemu=args.qemu,
         highmem=args.highmem,
-        device=args.device,
         phys=args.phys,
         mem=args.mem,
         product=args.product,
@@ -421,6 +394,6 @@ if __name__ == "__main__":
     if args.dump:
         adt.dump(adt.parse(blob)[0])
     print(
-        f"{args.out}: {len(blob)} bytes (device={args.device} highmem={args.highmem})",
+        f"{args.out}: {len(blob)} bytes (highmem={args.highmem})",
         file=sys.stderr,
     )

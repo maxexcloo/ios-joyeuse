@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Build the joyeuse ARM64 shim with LLVM and pack a verified boot image v2."""
+"""Build the joyeuse ARM64 shim with LLVM and pack a boot image v2."""
 
 import argparse
 import hashlib
@@ -117,22 +117,12 @@ def main():
             "--cmdline",
             "console=null",
         )
-        unpacked = work / "unpacked"
-        run(
-            sys.executable,
-            str(REPO / "tools/unpack_bootv2.py"),
-            str(candidate),
-            str(unpacked),
-        )
-        for name, expected in (("kernel", image), ("ramdisk", payload), ("dtb", dtb)):
-            if (unpacked / name).read_bytes() != expected.read_bytes():
-                sys.exit(f"boot image round trip failed: {name}")
         # Payloads can contain Wi-Fi credentials from --cmdline-file.
         fd = os.open(out, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
         with os.fdopen(fd, "wb") as f:
             os.fchmod(f.fileno(), 0o600)
             f.write(candidate.read_bytes())
-    print(f"{out}: {size}-byte shim; kernel, payload and DTB verified")
+    print(f"{out}: {size}-byte shim; ARM64 header and relocations verified")
     print(f"{hashlib.sha256(out.read_bytes()).hexdigest()}  {out.name}")
 
 

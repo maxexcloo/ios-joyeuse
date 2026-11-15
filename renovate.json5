@@ -1,6 +1,7 @@
 {
   $schema: "https://docs.renovatebot.com/renovate-schema.json",
   extends: ["github>maxexcloo/dotfiles//renovate/default.json5"],
+  forkProcessing: "enabled",
   packageRules: [
     {
       description: "Keep the Apple providers paired with the macOS 13.5 XNU ABI",

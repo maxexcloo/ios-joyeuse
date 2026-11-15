@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Pack an xnu kernel Mach-O + ADT into the payload the sweet shim boots.
 
-  mkpayload.py KERNEL ADT OUT [--cmdline "..."] [--ramdisk IMAGE]
+  mkpayload.py KERNEL ADT OUT [--cmdline "..."]
 
 The kernel is linked as a PIE with LC_DYLD_CHAINED_FIXUPS. Nobody else
 (no kmutil, no iBoot) resolves those for us, and xnu only rebases static
@@ -20,11 +20,6 @@ Payload layout (little endian, all offsets from payload start):
   0x048  char  cmdline[608]
   0x2a8  seg[nsegs] { u64 vmaddr, vmsize, file_off(in payload), file_size }
 
---ramdisk appends IMAGE as one more segment right after the kernel and moves
-kernel_end past it, so the shim needs no changes: the image lands below the
-ADT and boot_args, inside topOfKernelData (never handed to the VM), and the
-ADT gets /chosen/memory-map "RAMDisk" = <phys, size> for IOFindBSDRoot to
-turn into md0 (boot with rd=md0).
 """
 
 import argparse
@@ -150,16 +145,6 @@ def decode(raw, fmt, image_base):
     raise ValueError(f"unsupported chained pointer format {fmt}")
 
 
-def add_ramdisk_to_adt(adt_blob, phys, size):
-    """Return the ADT with /chosen/memory-map RAMDisk = <phys, size> (two uintptr_t)."""
-    root, _ = adt.parse(adt_blob)
-    chosen = next(c for c in root.children if c.name == "chosen")
-    mmap = next(c for c in chosen.children if c.name == "memory-map")
-    assert mmap.prop("RAMDisk") is None, "ADT already has a RAMDisk"
-    mmap.props.append(("RAMDisk", 0, struct.pack("<2Q", phys, size)))
-    return adt.serialize(root)
-
-
 def adt_dram(adt_blob):
     """Kernel-managed RAM <base, size> from the ADT's /chosen dram-base/dram-size."""
     root, _ = adt.parse(adt_blob)
@@ -170,7 +155,7 @@ def adt_dram(adt_blob):
     )
 
 
-def build(kernel_path, adt_path, cmdline, ramdisk_path=None):
+def build(kernel_path, adt_path, cmdline):
     cl = cmdline.encode()
     if len(cl) >= BOOT_LINE_LENGTH or b"\0" in cl:
         raise ValueError("kernel command line must fit in 607 bytes without NULs")
@@ -193,17 +178,6 @@ def build(kernel_path, adt_path, cmdline, ramdisk_path=None):
         (s["vmaddr"], s["vmsize"], buf[s["fileoff"] : s["fileoff"] + s["filesize"]])
         for s in segs
     ]
-    ramdisk = None
-    if ramdisk_path:
-        image = Path(ramdisk_path).read_bytes()
-        rd_size = (len(image) + PAGE - 1) & ~(PAGE - 1)
-        rd_va = kernel_end
-        kernel_end = rd_va + rd_size
-        rd_pa = rd_va - virt_base + PHYS_BASE
-        pieces.append((rd_va, rd_size, image))
-        adt_blob = add_ramdisk_to_adt(adt_blob, rd_pa, rd_size)
-        ramdisk = (hex(rd_pa), hex(rd_size))
-
     hdr_size = SEG_TABLE + 32 * len(pieces)
     out = bytearray(hdr_size)
     seg_table = []
@@ -239,7 +213,6 @@ def build(kernel_path, adt_path, cmdline, ramdisk_path=None):
         "virt_base": hex(virt_base),
         "entry": hex(m["entry"]),
         "kernel_end": hex(kernel_end),
-        "ramdisk": ramdisk,
         "size": len(out),
         "segs": [(s["name"], hex(s["vmaddr"]), hex(s["vmsize"])) for s in segs],
     }
@@ -256,10 +229,9 @@ if __name__ == "__main__":
     cmdline.add_argument(
         "--cmdline-file", help="read boot arguments locally; never printed"
     )
-    ap.add_argument("--ramdisk", help="root image for md0 (boot with rd=md0)")
     a = ap.parse_args()
     line = Path(a.cmdline_file).read_text().strip() if a.cmdline_file else a.cmdline
-    blob, info = build(a.kernel, a.adt, line, a.ramdisk)
+    blob, info = build(a.kernel, a.adt, line)
     fd = os.open(a.out, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
     with os.fdopen(fd, "wb") as output:
         os.fchmod(output.fileno(), 0o600)

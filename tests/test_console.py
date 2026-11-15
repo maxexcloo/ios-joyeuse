@@ -1,13 +1,12 @@
 """Exercise the changed unbuffered console function from its patch postimage."""
 
-import os
 import re
-import subprocess
 import tempfile
 import unittest
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parents[1]
+from host import ROOT, compile_and_run
+
 PATCH = ROOT / "xnu/patches/0114-sweet-mute-unbuffered-console.patch"
 HARNESS = r"""
 #include <cassert>
@@ -59,30 +58,5 @@ class Console(unittest.TestCase):
             path.write_text(HARNESS.replace("// PRODUCTION CALLBACK", function.group()))
             for sweet in (False, True):
                 with self.subTest(sweet=sweet):
-                    binary = work / ("sweet" if sweet else "other")
                     flags = ["-DARM64_BOARD_CONFIG_SWEET"] if sweet else []
-                    compiled = subprocess.run(
-                        [
-                            os.environ.get("CXX", "c++"),
-                            "-std=c++17",
-                            "-Wall",
-                            "-Wextra",
-                            "-Werror",
-                            *flags,
-                            str(path),
-                            "-o",
-                            str(binary),
-                        ],
-                        check=False,
-                        capture_output=True,
-                        text=True,
-                    )
-                    self.assertEqual(
-                        compiled.returncode, 0, compiled.stdout + compiled.stderr
-                    )
-                    result = subprocess.run(
-                        [str(binary)], check=False, capture_output=True, text=True
-                    )
-                    self.assertEqual(
-                        result.returncode, 0, result.stdout + result.stderr
-                    )
+                    compile_and_run(self, path, *flags)

@@ -29,7 +29,7 @@ detach_all() {
 }
 trap detach_all EXIT
 
-# attach DMG read-only, print the mounted volume path
+# Attach a source image and retain its device for cleanup.
 attach_ro() {
 	local dmg=$1 dev line
 	# -owners on: without it every file reads as 501/20 and rsync's
@@ -39,13 +39,13 @@ attach_ro() {
 	dev=$(echo "$line" | awk '{print $1}')
 	[[ -n $dev ]] || { echo "hdiutil could not attach $dmg" >&2; exit 1; }
 	rdev+=("$dev")
-	echo "$line" | awk '{print $NF}'
+	vol=$(echo "$line" | awk '{print $NF}')
 }
 
 echo "== attaching the IPSW images (read-only, native APFS)"
-osvol=$(attach_ro "$os")
-sysvol=$(attach_ro "$sysos")
-appvol=$(attach_ro "$appos")
+attach_ro "$os"; osvol=$vol
+attach_ro "$sysos"; sysvol=$vol
+attach_ro "$appos"; appvol=$vol
 echo "   OS       $osvol"
 echo "   SystemOS $sysvol"
 echo "   AppOS    $appvol"
@@ -96,77 +96,10 @@ copy "$osvol" "$mnt"
 copy "$sysvol" "$mnt/private/preboot/Cryptexes/OS"
 copy "$appvol" "$mnt/private/preboot/Cryptexes/App"
 
-echo "== linking cryptex extras at their root paths"
-# dyld does not search the cryptexes at ignition level 1, so every cryptex file
-# with no counterpart in the OS root gets a hard link at its normal location
-# (libobjc-trampolines, libffi-trampolines, libstdc++, ...).
-for c in OS App; do
-	# Variables are expanded by the inner shell, not this host shell.
-	# shellcheck disable=SC2016
-	$SUDO bash -c '
-		set -euo pipefail
-		root=$1; name=$2
-		cd "$root/private/preboot/Cryptexes/$name"
-		find . ! -type d ! -path "./System/Library/Caches/com.apple.dyld/*" | while IFS= read -r f; do
-			f=${f#./}
-			[ -e "$root/$f" ] || [ -L "$root/$f" ] && continue
-			mkdir -p "$root/$(dirname "$f")"
-			src="$root/private/preboot/Cryptexes/$name/$f"
-			if [ -L "$src" ]; then cp -P "$src" "$root/$f"; else ln "$src" "$root/$f"; fi
-		done
-	' _ "$mnt" "$c"
-	echo "   $c"
-done
-
-# The ownership-sensitive surgery lives in root-finalize.sh: same code the
-# resume path runs, so a part-built image finishes identically.
-echo "== logd stores, keybag, bring-up tweaks"
-$SUDO "$repo/tools/root-finalize.sh" "$mnt"
-
-echo "== verifying ownership landed on disk"
-# Variables are expanded by the inner shell, not this host shell.
-# shellcheck disable=SC2016
-$SUDO bash -euc '
-	r=$1
-	bad=0
-	check() { # path want_uid label
-		[ -e "$r/$1" ] || return 0
-		got=$(stat -f %u "$r/$1")
-		[ "$got" = "$2" ] || { echo "   MISMATCH $1: uid $got, want $2"; bad=1; }
-	}
-	check bin/ls 0 "system binary (root)"
-	check private/var/keybags/systembag.kb 0 "keybag (root)"
-	check private/var/db/diagnostics 272 "logd store (_logd)"
-	check private/var/db/uuidtext 272 "logd uuidtext (_logd)"
-	[ "$bad" = 0 ] && echo "   owners correct (root, _logd 272)"
-	exit "$bad"
-' _ "$mnt"
-
-echo "== unmounting and checking the volume"
 sync
 diskutil unmount "$dev" >/dev/null
 hdiutil detach "$dev" -quiet -force
+detach_all
 rdev=()
-# fsck_hfs cannot check a raw image file (it needs a block device), so attach
-# the image and verify the device node.
-chk=$(hdiutil attach -imagekey diskimage-class=CRawDiskImage -nomount "$out" 2>/dev/null |
-	awk 'NF && $1 ~ /^\/dev\/disk/ {print $1; exit}')
-if [ -n "$chk" ]; then
-	if diskutil verifyVolume "$chk" >/tmp/ios-fsck.$$ 2>&1; then
-		echo "   fsck: clean"
-	else
-		echo "   FSCK FAILED on $out:" >&2
-		tail -5 /tmp/ios-fsck.$$ >&2
-		fsck_failed=1
-	fi
-	rm -f /tmp/ios-fsck.$$
-	hdiutil detach "$chk" -quiet -force 2>/dev/null || true
-	[ -z "${fsck_failed:-}" ] || exit 1
-else
-	echo "   ERROR: could not attach $out to verify it" >&2
-	exit 1
-fi
-
-ls -lh "$out"
+$SUDO "$repo/tools/root-resume.sh" "$out"
 echo "built: $out"
-shasum -a 256 "$out"

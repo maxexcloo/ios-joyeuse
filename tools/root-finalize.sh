@@ -14,6 +14,7 @@ root=${1%/}
 [[ -d $root/System/Library/xpc ]] || {
 	echo "$root does not look like an iOS root (no System/Library/xpc)" >&2; exit 1; }
 [[ $(id -u) -eq 0 ]] || { echo "run as root" >&2; exit 1; }
+root=$(cd "$root" && pwd)
 
 repo=$(cd "$(dirname "$0")/.." && pwd)
 
@@ -28,6 +29,24 @@ if [ "$(stat -f %u "$probe")" != 272 ]; then
 	exit 1
 fi
 rm -f "$probe"
+
+echo "== linking cryptex extras at their root paths"
+# dyld does not search the cryptexes at ignition level 1, so every cryptex file
+# with no counterpart in the OS root gets a hard link at its normal location
+# (libobjc-trampolines, libffi-trampolines, libstdc++, ...).
+for c in OS App; do
+	(
+		cd "$root/private/preboot/Cryptexes/$c"
+		find . ! -type d ! -path "./System/Library/Caches/com.apple.dyld/*" | while IFS= read -r f; do
+			f=${f#./}
+			[ -e "$root/$f" ] || [ -L "$root/$f" ] && continue
+			mkdir -p "$root/$(dirname "$f")"
+			src="$root/private/preboot/Cryptexes/$c/$f"
+			if [ -L "$src" ]; then cp -P "$src" "$root/$f"; else ln "$src" "$root/$f"; fi
+		done
+	)
+	echo "   $c"
+done
 
 echo "== logd stores, keybag"
 # logd checks the owner and mode of its store (else "BUG IN LIBTRACE: Failed to
@@ -73,3 +92,18 @@ if [ -d "$dsc" ]; then
 else
 	echo "   WARNING: no $dsc, dyld will not find the shared cache" >&2
 fi
+
+echo "== verifying ownership landed on disk"
+bad=0
+check_owner() {
+	local got
+	[ -e "$root/$1" ] || return 0
+	got=$(stat -f %u "$root/$1")
+	[ "$got" = "$2" ] || { echo "   MISMATCH $1: uid $got, want $2"; bad=1; }
+}
+check_owner bin/ls 0
+check_owner private/var/keybags/systembag.kb 0
+check_owner private/var/db/diagnostics 272
+check_owner private/var/db/uuidtext 272
+[ "$bad" = 0 ] || exit "$bad"
+echo "   owners correct (root, _logd 272)"

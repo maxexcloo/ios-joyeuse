@@ -33,7 +33,6 @@ import shutil
 import sys
 import uuid
 
-BUILD, VERSION = "20H392", "16.7.16"
 MOBILE = 501
 
 
@@ -108,7 +107,7 @@ def find_container(root, kind, identifier):
     return None
 
 
-def activation(root):
+def activation(root, build, version):
     c = find_container(root, "Data/System", "com.apple.mobileactivationd")
     if c is None:
         print(
@@ -124,8 +123,8 @@ def activation(root):
         {
             "-ActivationState": "Activated",
             "-BrickState": False,
-            "-BuildVersion": BUILD,
-            "-ProductVersion": VERSION,
+            "-BuildVersion": build,
+            "-ProductVersion": version,
             "-DataMigrationCompleted": True,
             "-PreSydroDataMigrationCompleted": True,
         },
@@ -220,9 +219,14 @@ def main():
     ):
         sys.exit(__doc__)
     root = sys.argv[1]
+    system_version = load(
+        os.path.join(root, "System/Library/CoreServices/SystemVersion.plist")
+    )
+    build = system_version["ProductBuildVersion"]
+    version = system_version["ProductVersion"]
     launchd(root)
     containers(root)
-    activation(root)
+    activation(root, build, version)
     audio(root)
     capabilities(root)
     network(root)
@@ -230,10 +234,10 @@ def main():
         root,
         "com.apple.migration",
         {
-            "LastSystemVersion": BUILD,
+            "LastSystemVersion": build,
             "DMUserDataDisposition": {
                 "SyntheticDidUpgrade": False,
-                "buildVersion": BUILD,
+                "buildVersion": build,
             },
         },
     )

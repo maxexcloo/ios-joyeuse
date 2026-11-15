@@ -1,13 +1,12 @@
 """Check the kernel's surface result against the native iOS 16 client ABI."""
 
-import os
 import re
-import subprocess
 import tempfile
 import unittest
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parents[1]
+from host import ROOT, apply_patches, compile_and_run
+
 SOURCE = "iokit/Kernel/arm/SweetSurface.cpp"
 HEADER = "iokit/Kernel/arm/SweetSurface.h"
 
@@ -16,28 +15,7 @@ class Surface(unittest.TestCase):
     def test_native_planar_getters_read_serialised_fields(self):
         with tempfile.TemporaryDirectory() as scratch:
             work = Path(scratch)
-            patches = subprocess.check_output(
-                [
-                    "git",
-                    "ls-files",
-                    "--",
-                    "xnu/patches/*.patch",
-                ],
-                cwd=ROOT,
-                text=True,
-            ).splitlines()
-            subprocess.run(
-                [
-                    "git",
-                    "apply",
-                    f"--include={SOURCE}",
-                    f"--include={HEADER}",
-                    *(str(ROOT / p) for p in sorted(patches)),
-                ],
-                cwd=work,
-                check=True,
-                capture_output=True,
-            )
+            apply_patches(work, SOURCE, HEADER)
             source, header = (work / SOURCE).read_text(), (work / HEADER).read_text()
             pieces = []
             for name in ("put32", "put64", "sweet_surface_fill_result"):
@@ -77,26 +55,6 @@ class Surface(unittest.TestCase):
                 + "};",
             )
             fixture = fixture.replace("// PRODUCTION SERIALISER", "\n".join(pieces))
-            path, binary = work / "surface.cpp", work / "surface"
+            path = work / "surface.cpp"
             path.write_text(fixture)
-            result = subprocess.run(
-                [
-                    os.environ.get("CXX", "c++"),
-                    "-std=c++17",
-                    "-Wall",
-                    "-Wextra",
-                    "-Werror",
-                    "-fsanitize=address,undefined",
-                    str(path),
-                    "-o",
-                    str(binary),
-                ],
-                check=False,
-                capture_output=True,
-                text=True,
-            )
-            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
-            result = subprocess.run(
-                [str(binary)], check=False, capture_output=True, text=True
-            )
-            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+            compile_and_run(self, path, "-fsanitize=address,undefined")

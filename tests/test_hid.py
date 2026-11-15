@@ -1,13 +1,12 @@
 """Exercise the opt-in HID timer without hardware or an IOHID runtime."""
 
-import os
 import re
-import subprocess
 import tempfile
 import unittest
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parents[1]
+from host import apply_patches, compile_and_run
+
 SOURCE = "iokit/Kernel/arm/hid/SweetHID.cpp"
 
 
@@ -15,22 +14,7 @@ class HID(unittest.TestCase):
     def test_synthetic_input_finishes_with_buttons_and_contacts_released(self):
         with tempfile.TemporaryDirectory() as scratch:
             work = Path(scratch)
-            patches = subprocess.check_output(
-                ["git", "ls-files", "--", "xnu/patches/*.patch"],
-                cwd=ROOT,
-                text=True,
-            ).splitlines()
-            subprocess.run(
-                [
-                    "git",
-                    "apply",
-                    f"--include={SOURCE}",
-                    *map(str, (ROOT / p for p in sorted(patches))),
-                ],
-                cwd=work,
-                check=True,
-                capture_output=True,
-            )
+            apply_patches(work, SOURCE)
             callback = re.search(
                 r"^void\nSweetHIDButtons::testFired\([^\n]*\)\n\{.*?^\}",
                 (work / SOURCE).read_text(),
@@ -102,26 +86,6 @@ int main() {
     }
 }
 """.replace("// PRODUCTION CALLBACK", callback)
-            source, binary = work / "hid.cpp", work / "hid"
+            source = work / "hid.cpp"
             source.write_text("#include <initializer_list>\n" + fixture)
-            result = subprocess.run(
-                [
-                    os.environ.get("CXX", "c++"),
-                    "-std=c++17",
-                    "-Wall",
-                    "-Wextra",
-                    "-Werror",
-                    "-fsanitize=address,undefined",
-                    str(source),
-                    "-o",
-                    str(binary),
-                ],
-                check=False,
-                capture_output=True,
-                text=True,
-            )
-            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
-            result = subprocess.run(
-                [str(binary)], check=False, capture_output=True, text=True
-            )
-            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+            compile_and_run(self, source, "-fsanitize=address,undefined")

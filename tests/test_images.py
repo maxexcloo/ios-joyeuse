@@ -28,7 +28,7 @@ class Images(unittest.TestCase):
     def test_v2_sections_and_aosp_image_id(self):
         with tempfile.TemporaryDirectory() as scratch:
             work = Path(scratch)
-            names = ("kernel", "ramdisk", "second", "recovery_dtbo", "dtb")
+            names = ("kernel", "ramdisk", "dtb")
             parts = [bytes([i + 1]) * (4097 + i) for i in range(len(names))]
             args = []
             for name, data in zip(names, parts):
@@ -44,15 +44,13 @@ class Images(unittest.TestCase):
             data = boot.read_bytes()
             expected = hashlib.sha1()
             offset = 4096
-            for part in parts:
+            for part in (*parts[:2], b"", b"", parts[2]):
                 expected.update(part)
                 expected.update(struct.pack("<I", len(part)))
                 self.assertEqual(data[offset : offset + len(part)], part)
                 offset += (len(part) + 4095) // 4096 * 4096
             self.assertEqual(data[576:596], expected.digest())
-            self.assertEqual(
-                struct.unpack_from("<IQI", data, 1632), (4100, 28672, 1660)
-            )
+            self.assertEqual(struct.unpack_from("<IQI", data, 1632), (0, 0, 1660))
             unpacked = work / "unpacked"
             subprocess.run(
                 [
@@ -77,12 +75,12 @@ class Images(unittest.TestCase):
 
     def test_hardware_adt_requires_product_input(self):
         with self.assertRaisesRegex(ValueError, "--product"):
-            mkadt.build(device="joyeuse")
+            mkadt.build()
         with (
             tempfile.TemporaryDirectory() as scratch,
             self.assertRaises(FileNotFoundError),
         ):
-            mkadt.build(device="joyeuse", product=Path(scratch) / "missing.adt")
+            mkadt.build(product=Path(scratch) / "missing.adt")
         diagnostic = mkadt.build(qemu=True)
         self.assertNotIn("product", [node.name for node in diagnostic.children])
         chosen = next(node for node in diagnostic.children if node.name == "chosen")
@@ -104,10 +102,10 @@ class Images(unittest.TestCase):
             path = Path(scratch) / "product.adt"
             path.write_bytes(adt.serialize(source))
             with self.assertRaisesRegex(ValueError, "--touch-firmware"):
-                mkadt.build(device="joyeuse", product=path)
+                mkadt.build(product=path)
             firmware = Path(scratch) / "touch.bin"
             firmware.write_bytes(b"device-supplied touch firmware")
-            root = mkadt.build(device="joyeuse", product=path, touch_firmware=firmware)
+            root = mkadt.build(product=path, touch_firmware=firmware)
         generated = next(node for node in root.children if node.name == "product")
         self.assertEqual(generated.prop("product-name"), b"Test Product\0")
         self.assertIsNone(generated.prop("placeholder"))
@@ -135,7 +133,14 @@ class Images(unittest.TestCase):
             wifi, bluetooth = Path(scratch) / "wifi.bin", Path(scratch) / "bt.bin"
             wifi.write_bytes(bytes((2, 0, 0, 0, 0, 1)))
             bluetooth.write_bytes(bytes((2, 0, 0, 0, 0, 2)))
-            root = mkadt.build(product=product, wifi_mac=wifi, bluetooth_mac=bluetooth)
+            firmware = Path(scratch) / "touch.bin"
+            firmware.write_bytes(b"test firmware")
+            root = mkadt.build(
+                product=product,
+                touch_firmware=firmware,
+                wifi_mac=wifi,
+                bluetooth_mac=bluetooth,
+            )
             parsed, _ = adt.parse(adt.serialize(root))
             chosen = next(n for n in parsed.children if n.name == "chosen")
             self.assertEqual(chosen.prop("mac-address-wifi0"), wifi.read_bytes())
@@ -146,7 +151,7 @@ class Images(unittest.TestCase):
                 mkadt.build(qemu=True, wifi_mac=wifi)
             wifi.write_bytes(b"not six bytes")
             with self.assertRaisesRegex(ValueError, "six raw bytes"):
-                mkadt.build(product=product, wifi_mac=wifi)
+                mkadt.build(product=product, touch_firmware=firmware, wifi_mac=wifi)
 
     def test_root_preparation_invalidates_cached_hardware_answers(self):
         with tempfile.TemporaryDirectory() as scratch:

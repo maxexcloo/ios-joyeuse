@@ -30,7 +30,7 @@ Hardware ADTs need the stock boot image, the iPhone X `d22ap.adt` device tree (I
 ```sh
 mkdir -p out
 python tools/unpack_bootv2.py fw/boot.img out/stock
-python tools/mkadt.py out/joyeuse.adt --device joyeuse --highmem --product fw/d22ap.adt --touch-firmware fw/focaltech_ts_fw_huaxing.bin --wifi-mac fw/wifi-mac.bin --bluetooth-mac fw/bluetooth-mac.bin
+python tools/mkadt.py out/joyeuse.adt --highmem --product fw/d22ap.adt --touch-firmware fw/focaltech_ts_fw_huaxing.bin --wifi-mac fw/wifi-mac.bin --bluetooth-mac fw/bluetooth-mac.bin
 tools/cmdline.sh good > out/cmdline.txt
 python tools/mkpayload.py xnu/out/kernel.development.sweet out/joyeuse.adt out/payload.bin --cmdline-file out/cmdline.txt
 mise run build -- out/stock/dtb out/payload.bin out/shim-boot.img

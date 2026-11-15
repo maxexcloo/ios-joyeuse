@@ -135,7 +135,7 @@
 +		return;
 +	}
 +	if (sweet_amfi_debug) {
-+		/* The test keys only exist in tools/mkinit.py test signatures. */
++		/* The test keys are only for synthetic test signatures. */
 +		printf("SWEET AMFI: %s: %u entitlements (test: bool %d string %d array %d)\n",
 +		    csblob_get_identity(code_signing_blob), sweet_entitlements_count(ent),
 +		    sweet_entitlements_bool(ent, "com.apple.private.sweet.test-bool"),

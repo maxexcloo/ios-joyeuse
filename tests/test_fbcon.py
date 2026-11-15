@@ -1,13 +1,12 @@
 """Exercise the framebuffer serial callback that kprintf calls directly."""
 
-import os
 import re
-import subprocess
 import tempfile
 import unittest
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parents[1]
+from host import ROOT, compile_and_run
+
 PATCH = ROOT / "xnu/patches/0118-sweet-mute-framebuffer-serial.patch"
 HARNESS = r"""
 #include <algorithm>
@@ -73,26 +72,5 @@ class FramebufferSerial(unittest.TestCase):
             path.write_text(HARNESS.replace("// PRODUCTION CALLBACK", function.group()))
             for sweet in (False, True):
                 with self.subTest(sweet=sweet):
-                    binary = Path(scratch) / ("sweet" if sweet else "other")
                     flags = ["-DARM64_BOARD_CONFIG_SWEET"] if sweet else []
-                    compiled = subprocess.run(
-                        [
-                            os.environ.get("CXX", "c++"),
-                            "-std=c++17",
-                            "-Wall",
-                            "-Wextra",
-                            "-Werror",
-                            *flags,
-                            str(path),
-                            "-o",
-                            str(binary),
-                        ],
-                        capture_output=True,
-                        text=True,
-                        check=False,
-                    )
-                    self.assertEqual(compiled.returncode, 0, compiled.stderr)
-                    result = subprocess.run(
-                        [str(binary)], capture_output=True, text=True, check=False
-                    )
-                    self.assertEqual(result.returncode, 0, result.stderr)
+                    compile_and_run(self, path, *flags)
