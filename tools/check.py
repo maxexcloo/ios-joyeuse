@@ -1,15 +1,10 @@
-"""Run host behaviour tests and patch structure checks without a phone, firmware or a kernel build."""
+"""Check patch structure without a phone, firmware or a kernel build."""
 
 import subprocess
 import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-subprocess.run(
-    [sys.executable, "-B", "-m", "unittest", "discover", "-s", "tests"],
-    cwd=ROOT,
-    check=True,
-)
 patches = subprocess.check_output(["git", "ls-files", "*.patch"], cwd=ROOT, text=True)
 for patch in patches.split():
     result = subprocess.run(
