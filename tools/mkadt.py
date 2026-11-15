@@ -84,12 +84,10 @@ BOOT_MANIFEST_HASH = hashlib.sha384(b"sweet boot manifest").digest()
 # the root identity and /product of the real D22AP device tree. That tree is
 # an Apple artifact (kept out of git): extract it from the IPSW with
 #   tools/remotezip.py URL DeviceTree.d22ap.im4p DIR
-#   ipsw img4 im4p extract DIR/Firmware/all_flash/DeviceTree.d22ap.im4p -o d22ap.adt
 def d22ap_product(path):
     """/product properties of the real D22AP tree, without the syscfg
     placeholders iBoot would fill in (flag bit set) and the node bookkeeping."""
-    with open(path, "rb") as source:
-        root, _ = adt.parse(source.read())
+    root, _ = adt.parse(adt.load(path))
     for c in root.children:
         if {k: v for k, f, v in c.props}.get("name") == b"product\0":
             return [

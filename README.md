@@ -25,7 +25,7 @@ gh workflow run xnu.yaml
 gh run download RUN_ID -n joyeuse-xnu -D xnu/out
 ```
 
-Hardware ADTs need the stock boot image, the unwrapped iPhone X `d22ap.adt`, the phone's FT8756 firmware and its Wi-Fi and Bluetooth addresses (six raw bytes each), all in `fw/`. Keep these inputs and the generated ADT and payload private.
+Hardware ADTs need the stock boot image, the iPhone X `d22ap.adt` device tree (IM4P or unwrapped), the phone's FT8756 firmware and its Wi-Fi and Bluetooth addresses (six raw bytes each), all in `fw/`. Keep these inputs and the generated ADT and payload private.
 
 ```sh
 mkdir -p out
