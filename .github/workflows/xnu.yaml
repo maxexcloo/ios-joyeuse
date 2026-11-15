@@ -63,7 +63,24 @@ jobs:
         env:
           # Keep going after errors so one run reports every compile failure.
           MAKEFLAGS: -k
-        run: bash build.sh
+        run: |
+          set -o pipefail
+          bash build.sh 2>&1 | tee "$RUNNER_TEMP/build.log"
+
+      # build.sh only warns when a patch fails to apply, so require "Applying patch"
+      # for every xnu/patches/*.patch (blacktop's own optional patches may not apply).
+      - name: Verify Every Patch Applied
+        run: |
+          set -euo pipefail
+          applied=$(grep -oE "Applying patch: .*/[^/]+\.patch" "$RUNNER_TEMP/build.log" | sed 's|.*/||' | sort -u)
+          bad=0
+          for p in xnu/patches/*.patch; do
+            b=$(basename "$p")
+            grep -Fxq "$b" <<< "$applied" && continue
+            echo "::error file=$p::not applied (see 'Skipping patch' in the log)"
+            bad=$((bad + 1))
+          done
+          [ "$bad" = 0 ]
 
       - name: Package Build Tree for Local Compiles
         if: always()

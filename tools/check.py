@@ -1,4 +1,4 @@
-"""Run host behaviour tests without a phone, firmware or a kernel build."""
+"""Run host behaviour tests and patch structure checks without a phone, firmware or a kernel build."""
 
 import subprocess
 import sys
@@ -10,3 +10,14 @@ subprocess.run(
     cwd=ROOT,
     check=True,
 )
+patches = subprocess.check_output(["git", "ls-files", "*.patch"], cwd=ROOT, text=True)
+for patch in patches.split():
+    result = subprocess.run(
+        ["git", "apply", "--numstat", patch],
+        cwd=ROOT,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if result.returncode:
+        sys.exit(f"{patch}: malformed patch\n{result.stderr}")
