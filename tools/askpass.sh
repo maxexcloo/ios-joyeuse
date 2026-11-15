@@ -7,5 +7,5 @@
 #
 # Prints the password on stdout, as sudo expects.
 set -euo pipefail
-osascript -e 'display dialog "ios-redmi needs sudo to copy the iOS root filesystem (owners, modes, logd stores, keybag)." with title "iOS root image" default answer "" with hidden answer buttons {"Cancel", "OK"} default button "OK" with icon caution' \
+osascript -e 'display dialog "ios-joyeuse needs sudo to copy the iOS root filesystem (owners, modes, logd stores, keybag)." with title "iOS root image" default answer "" with hidden answer buttons {"Cancel", "OK"} default button "OK" with icon caution' \
 	| sed -n 's/^button returned:OK, text returned:\(.*\)$/\1/p'

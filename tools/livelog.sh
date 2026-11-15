@@ -1,8 +1,7 @@
 #!/bin/bash
 # Catch the phone's live kernel log over USB Ethernet (macOS side of patches
-# 0075-0077). Replaces "film the screen / reboot to OrangeFox": the phone
-# streams its console as UDP to the host every 100 ms, from the moment the USB
-# device mode comes up.
+# 0075-0077). The phone streams its console as UDP to the host every 100 ms,
+# from the moment the USB device mode comes up.
 #
 #   tools/livelog.sh [LOGFILE]
 #
@@ -18,9 +17,8 @@ mac=02:00:5e:77:ee:01
 iface=""
 
 echo "waiting for the phone's USB Ethernet (host MAC $mac)..." >&2
-echo "  (boot the phone now: tools/device.sh boot out/shim-boot-*.img)" >&2
+echo "  (boot the phone now: tools/device.sh boot out/shim-boot.img)" >&2
 for _ in $(seq 600); do
-	# networksetup lists the hardware port and MAC of every interface.
 	for i in $(ifconfig -l); do
 		if ifconfig "$i" 2>/dev/null | grep -qi "ether $mac"; then iface=$i; break; fi
 	done

@@ -68,9 +68,8 @@ DEVICES = {
             "AppleARM",
         ),
         "ecid": 0x4D4941544F4C4C01,  # 'MIATOLL' + 1, synthetic
-        # Live FDT (read at 00:40 via recovery adb) has 3 banks: 2G @0x80000000,
-        # 4G @0x100000000, 1G @0x200000000. /chosen carries one dram window, so
-        # point it at the dominant 4G bank. The shim prints all 3 as MEM0.. at
+        # Live FDT has 3 banks: 2G @0x80000000, 4G @0x100000000, 1G @0x200000000.
+        # /chosen carries one dram window, so point it at the dominant 4G bank. The shim prints all 3 as MEM0.. at
         # boot; --phys/--mem override if a board's layout differs.
         "high_phys": 0x100000000,
         "high_mem": 0x100000000,
@@ -284,10 +283,6 @@ def build(
             # otherwise crashes trying to set the PMU boot stage (customer builds
             # ignore the -wdt_no_pmu boot-arg).
             node("wdt", [ph(), ("no-pmu", u32(1))]),
-            # Main display: IOMobileFramebuffer.framework counts /arm-io children
-            # with this device_type and reads the canvas size from the node
-            # (the presented iPhone X size, see SweetFramebuffer.cpp);
-            # the kernel's AppleCLCD matches the compatible string.
             # launchd starts wifid only when the device tree has a "wlan" node
             # (com.apple.wifid _LimitLoadToDeviceTree = wlan, marconi-wifi)
             node(
@@ -298,6 +293,10 @@ def build(
                     ("compatible", cstr("qca,wcn3990")),
                 ],
             ),
+            # Main display: IOMobileFramebuffer.framework counts /arm-io children
+            # with this device_type and reads the canvas size from the node
+            # (the presented iPhone X size, see SweetFramebuffer.cpp);
+            # the kernel's AppleCLCD matches the compatible string.
             node(
                 "disp0",
                 [
@@ -332,15 +331,15 @@ def build(
         ],
     )
 
-    # pmap_compute_max_asids requires the node even when no overrides are set.
-    # An absent pmap-max-asids property selects XNU's own MAX_ASIDS default.
-    # No effaceable storage: keybagd then reads /private/var/keybags/systembag.kb
-    # as a plain plist instead of decrypting it with the effaceable key.
     if device == "joyeuse" and not qemu:
         chosen.props.append(
             ("focaltech-firmware", 0, Path(touch_firmware).read_bytes())
         )
 
+    # pmap_compute_max_asids requires the node even when no overrides are set.
+    # An absent pmap-max-asids property selects XNU's own MAX_ASIDS default.
+    # No effaceable storage: keybagd then reads /private/var/keybags/systembag.kb
+    # as a plain plist instead of decrypting it with the effaceable key.
     defaults = node("defaults", [ph(), ("no-effaceable-storage", u32(1))])
 
     # MobileGestalt HomeButtonType = IODeviceTree:/buttons home-button-type

@@ -4,9 +4,7 @@
 #   sudo root-finalize.sh MOUNTED_ROOT
 #
 # Run as root (writes root/_logd/mobile-owned files). Idempotent, so it can be
-# re-run on an image whose earlier build stopped part-way. Split out of
-# mkiosroot-macos.sh so the 11 GiB copy never has to be repeated just to redo
-# these steps.
+# re-run on an image whose earlier build stopped part-way.
 #
 # BSD install(1) cannot read from /dev/stdin (GNU install can), so the keybag
 # goes through a temporary file.
@@ -21,7 +19,7 @@ repo=$(cd "$(dirname "$0")/.." && pwd)
 
 # Refuse to continue on a noowners mount: chown would be dropped without an
 # error, and the image would boot into a wall of EACCES.
-probe=$root/.ios-redmi-owner-probe
+probe=$root/.ios-joyeuse-owner-probe
 touch "$probe"; chown 272:272 "$probe"
 if [ "$(stat -f %u "$probe")" != 272 ]; then
 	rm -f "$probe"
