@@ -22,9 +22,7 @@ repo=$(cd "$(dirname "$0")/.." && pwd)
 rdev=()
 detach_all() {
 	# ${rdev[@]+...}: macOS ships bash 3.2, where "${rdev[@]}" on an empty
-	# array is an unbound-variable error under `set -u`. The EXIT trap runs
-	# this at the end of a *successful* build too, which made every good run
-	# exit 1 (logs/root-build-final.log ends that way, after the sha256).
+	# array is an unbound-variable error under `set -u`.
 	for d in ${rdev[@]+"${rdev[@]}"}; do
 		hdiutil detach "$d" -quiet -force 2>/dev/null || true
 	done
@@ -149,13 +147,8 @@ sync
 diskutil unmount "$dev" >/dev/null
 hdiutil detach "$dev" -quiet -force
 rdev=()
-# fsck_hfs cannot check a raw image FILE: it stats the path for a block device
-# size, prints "Can't get device block size" and exits 8 without examining the
-# volume, so `fsck_hfs ... $out` both repaired nothing and verified nothing
-# (every build log shows that line and none ever printed "fsck: clean").
-# Attach the image and verify the device node instead -- that is the check that
-# actually reads the filesystem. -f -y is gone with it: repairing an image we
-# just wrote, by an fsck that cannot read it, is not a repair.
+# fsck_hfs cannot check a raw image file (it needs a block device), so attach
+# the image and verify the device node.
 chk=$(hdiutil attach -imagekey diskimage-class=CRawDiskImage -nomount "$out" 2>/dev/null |
 	awk 'NF && $1 ~ /^\/dev\/disk/ {print $1; exit}')
 if [ -n "$chk" ]; then
@@ -164,9 +157,11 @@ if [ -n "$chk" ]; then
 	else
 		echo "   FSCK FAILED on $out:" >&2
 		tail -5 /tmp/ios-fsck.$$ >&2
+		fsck_failed=1
 	fi
 	rm -f /tmp/ios-fsck.$$
 	hdiutil detach "$chk" -quiet -force 2>/dev/null || true
+	[ -z "${fsck_failed:-}" ] || exit 1
 else
 	echo "   ERROR: could not attach $out to verify it" >&2
 	exit 1

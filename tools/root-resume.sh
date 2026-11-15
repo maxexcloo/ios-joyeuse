@@ -5,7 +5,7 @@
 #
 # For the case where the ~11 GiB copy already completed and a later step
 # failed. Attaches the raw image, runs tools/root-finalize.sh on it, unmounts
-# and runs fsck_hfs. Nothing is written outside the image file.
+# and verifies the volume. Nothing is written outside the image file.
 set -euo pipefail
 [[ $# -eq 1 ]] || { sed -n '2,9p' "$0"; exit 2; }
 [[ $(id -u) -eq 0 ]] || { echo "run as root (sudo $0 ...)" >&2; exit 1; }
@@ -37,9 +37,8 @@ sync
 diskutil unmount "$dev" >/dev/null
 hdiutil detach "$dev" -quiet -force
 trap - EXIT
-# fsck_hfs cannot read a raw image file (it needs a block device for the sector
-# size: "Can't get device block size", exit 8), which is why this check never
-# printed "fsck: clean" in any build log. Attach and verify the device node.
+# fsck_hfs cannot check a raw image file (it needs a block device), so attach
+# the image and verify the device node.
 chk=$(hdiutil attach -imagekey diskimage-class=CRawDiskImage -nomount "$img" 2>/dev/null |
 	awk 'NF && $1 ~ /^\/dev\/disk/ {print $1; exit}')
 if [ -n "$chk" ]; then
@@ -48,9 +47,11 @@ if [ -n "$chk" ]; then
 	else
 		echo "   FSCK FAILED on $img:" >&2
 		tail -5 /tmp/ios-fsck.$$ >&2
+		fsck_failed=1
 	fi
 	rm -f /tmp/ios-fsck.$$
 	hdiutil detach "$chk" -quiet -force 2>/dev/null || true
+	[ -z "${fsck_failed:-}" ] || exit 1
 else
 	echo "   ERROR: could not attach $img to verify it" >&2
 	exit 1
