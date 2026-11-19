@@ -44,7 +44,7 @@ Build the root from the OS, SystemOS and AppOS DMGs named by the IPSW's D22AP `B
 tools/mkiosroot-macos.sh ipsw/OS.dmg ipsw/SystemOS.dmg ipsw/AppOS.dmg out/ios16-root.img 16G
 ```
 
-`root-resume.sh` finishes an interrupted image in place, `root-variant.sh` makes copy-on-write variants of `out/ios16-root.img`, and `sparsediff.py OLD NEW OUT.simg` writes only the changed blocks for reflashing.
+`root-resume.sh` finishes an interrupted image in place, and `root-variant.sh` makes copy-on-write variants of `out/ios16-root.img`. Use `sparsediff.py OLD NEW OUT.simg` only when `OLD` matches the current partition byte for byte. Flash a full sparse image after booting a writable root.
 
 For offline diagnostics, `mkadt.py --qemu` builds a virtual tree and `qemu-sweet.py PAYLOAD OUTDIR --disk IMAGE --kernel KERNEL` boots it with a separate `disk.qcow2` overlay; `rd=rvblk0 virtio_blk=1` selects a read-only HFS root and `virtio_blk=2` permits overlay writes.
 
@@ -53,7 +53,7 @@ For offline diagnostics, `mkadt.py --qemu` builds a virtual tree and `qemu-sweet
 Use an unlocked joyeuse and its own recovery image. Confirm the fitted touch controller; a stock `synaptics_tcm` node alone does not identify it. Back up first, then approve the `userdata` erase:
 
 ```sh
-fastboot boot RECOVERY.img
+tools/device.sh boot RECOVERY.img
 tools/device.sh backup backups/first
 img2simg out/ios16-root.img out/ios16-root.simg 4096
 tools/device.sh flash-root out/ios16-root.simg

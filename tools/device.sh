@@ -72,7 +72,7 @@ backup)
 		esac
 		echo "pulling $dev ($want bytes)"
 		adb exec-out "dd if=/dev/block/by-name/$dev 2>/dev/null" > "$dir/$p.img"
-		got=$(stat -f %z "$dir/$p.img" 2>/dev/null || stat -c %s "$dir/$p.img" 2>/dev/null || echo 0)
+		got=$(stat -c %s "$dir/$p.img" 2>/dev/null) || got=$(stat -f %z "$dir/$p.img")
 		if [ "$got" != "$want" ]; then
 			echo "ERROR: $p dumped $got bytes, device reports $want" >&2
 			exit 1

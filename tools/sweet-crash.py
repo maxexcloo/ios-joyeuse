@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 """Symbolicate SWEET console crash reports (patch 0043) typed in from a photo.
 
-  sweet-crash.py CACHE ROOT [REPORT.txt]       (report on stdin if omitted)
+  sweet-crash.py CACHE [REPORT.txt]       (report on stdin if omitted)
 
 CACHE is the dyld_shared_cache_arm64 (in a writable directory: ipsw keeps a
-symbol cache next to it), ROOT the mounted iOS root image. Lines look like
+symbol cache next to it). Lines look like
 
   CRASH name[pid] sig 6 code 0x... sub 0x... slide 0x... mh 0x...
   CRASH name pc 0x... lr 0x... sp 0x... fp 0x... far 0x...
@@ -13,9 +13,10 @@ symbol cache next to it), ROOT the mounted iOS root image. Lines look like
 Addresses inside the shared cache are unslid (addr - slide) and resolved
 with `ipsw dyld a2s`; addresses in the main binary are shown as offsets
 from its Mach-O header (address - mh + 0x100000000, the binary's own
-vmaddr) for llvm-objdump of ROOT's executable.
+vmaddr) for llvm-objdump of the iOS executable.
 """
 
+import argparse
 import re
 import subprocess
 import sys
@@ -36,8 +37,11 @@ def a2s(cache, addr):
 
 
 def main():
-    cache = sys.argv[1]
-    text = Path(sys.argv[3]).read_text() if len(sys.argv) > 3 else sys.stdin.read()
+    ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    ap.add_argument("cache")
+    ap.add_argument("report", type=Path, nargs="?")
+    args = ap.parse_args()
+    text = args.report.read_text() if args.report else sys.stdin.read()
     slide = mh = 0
     for line in text.splitlines():
         m = re.search(r"slide (0x[0-9a-f]+) mh (0x[0-9a-f]+)", line)
@@ -49,7 +53,7 @@ def main():
         for a in re.findall(r"(?:pc|lr|bt|\s)(?: )?(0x[0-9a-f]{6,})", line):
             v = int(a, 16)
             if CACHE_LO <= v - slide < CACHE_HI:
-                print(f"    {a} = cache {hex(v - slide)} {a2s(cache, v - slide)}")
+                print(f"    {a} = cache {hex(v - slide)} {a2s(args.cache, v - slide)}")
             elif mh and mh <= v < mh + 0x10000000:
                 print(f"    {a} = main binary {hex(v - mh + 0x100000000)}")
 

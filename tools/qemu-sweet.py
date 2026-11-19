@@ -27,12 +27,14 @@ rd=rvblk0 virtio_blk=1 (read-only) or 2 (writable).
 """
 
 import argparse
+import atexit
 import json
 import os
 import socket
 import struct
 import subprocess
 import sys
+import tempfile
 import time
 import zlib
 from pathlib import Path
@@ -242,6 +244,8 @@ def main():
         help="require text in the captured kernel console ring; repeatable",
     )
     a = ap.parse_args()
+    if a.gdb and (a.fail_on_panic or a.expect):
+        ap.error("--gdb cannot be combined with --fail-on-panic or --expect")
     if (a.fail_on_panic or a.expect) and not a.kernel:
         ap.error("--fail-on-panic and --expect require --kernel")
     payload = Path(a.payload).read_bytes()
@@ -267,7 +271,9 @@ def main():
     out = os.path.abspath(a.outdir)
 
     phys_base, img, ba_pa, entry_pa = build_image(payload)
-    Path(f"{out}/ram.bin").write_bytes(img)
+    with tempfile.NamedTemporaryFile(dir=out, prefix=".ram-", delete=False) as ram:
+        atexit.register(Path(ram.name).unlink, missing_ok=True)
+        ram.write(img)
     Path(f"{out}/stub.bin").write_bytes(stub(ba_pa, entry_pa))
     print(
         f"phys_base={phys_base:#x} boot_args={ba_pa:#x} entry={entry_pa:#x}",
@@ -301,7 +307,7 @@ def main():
         f"{out}/qemu.log",
         "-no-reboot",
         "-device",
-        f"loader,file={out}/ram.bin,addr={phys_base:#x},force-raw=on",
+        f"loader,file={ram.name},addr={phys_base:#x},force-raw=on",
         "-device",
         f"loader,file={out}/stub.bin,addr={STUB_PA:#x},force-raw=on",
         "-device",
@@ -348,8 +354,7 @@ def main():
     p = subprocess.Popen(cmd, stdin=subprocess.DEVNULL)
     if a.gdb:
         print("gdb stub on :1234; QMP socket:", mon, file=sys.stderr)
-        p.wait()
-        return
+        return p.wait()
     t0 = time.time()
     while p.poll() is None and time.time() - t0 < a.secs:
         time.sleep(0.2)
@@ -407,8 +412,6 @@ def main():
             os.unlink(f"{out}/console-total.raw")
     else:
         print(f"qemu exited early: {p.returncode}", file=sys.stderr)
-    for f in ("ram.bin",):
-        os.unlink(f"{out}/{f}")
     Path(f"{out}/result.json").write_text(json.dumps(result, indent=2) + "\n")
     print(json.dumps(result), file=sys.stderr)
     print(f"{out}/fb.png  {out}/regs.txt  {out}/qemu.log", file=sys.stderr)

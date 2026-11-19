@@ -3,8 +3,8 @@
 
   sparsediff.py OLD.img NEW.img OUT.simg [--block 4096]
 
-OLD must be exactly what the partition holds now (the image last flashed);
-NEW is the edited copy. Differing blocks become RAW chunks, everything else
+OLD must match the partition byte for byte. After booting a writable root,
+use a full image. Differing blocks become RAW chunks, everything else
 DONT_CARE, so `fastboot flash PART OUT.simg` rewrites only the changes
 instead of the whole image. Both images must be the same size.
 """

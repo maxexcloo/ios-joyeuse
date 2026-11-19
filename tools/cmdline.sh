@@ -46,13 +46,11 @@ for a in extra:
         order.append(n)
     cur[n] = a
 
-# A credential with the radio switched off is the silent failure this script
-# exists to prevent: the kernel parses wifi_ssid, wifi_enabled() returns false,
-# and nothing is logged. Refuse instead of printing a line that cannot work.
+# Wi-Fi autojoin runs inside the modem thread.
 if 'wifi_ssid' in cur:
-    v = cur.get('wifi', 'wifi=0')
-    if v.split('=', 1)[-1] in ('', '0'):
-        sys.exit("cmdline.sh: wifi_ssid is set but wifi is off (%r); "
-                 "use the 'wifi' base or add wifi=1" % v)
+    for radio in ('wifi', 'modem'):
+        if cur.get(radio, '0').split('=', 1)[-1] in ('', '0'):
+            sys.exit(f"cmdline.sh: wifi_ssid requires {radio} to be enabled. "
+                     "Use the 'wifi' base or set modem=1 wifi=1.")
 print(' '.join(cur[n] for n in order))
 PY
