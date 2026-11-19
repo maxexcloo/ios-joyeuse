@@ -35,26 +35,8 @@ echo "== $img at $mnt"
 echo "== unmounting and checking the volume"
 sync
 diskutil unmount "$dev" >/dev/null
+diskutil verifyVolume "$dev"
 hdiutil detach "$dev" -quiet -force
 trap - EXIT
-# fsck_hfs cannot check a raw image file (it needs a block device), so attach
-# the image and verify the device node.
-chk=$(hdiutil attach -imagekey diskimage-class=CRawDiskImage -nomount "$img" 2>/dev/null |
-	awk 'NF && $1 ~ /^\/dev\/disk/ {print $1; exit}')
-if [ -n "$chk" ]; then
-	if diskutil verifyVolume "$chk" >/tmp/ios-fsck.$$ 2>&1; then
-		echo "   fsck: clean"
-	else
-		echo "   FSCK FAILED on $img:" >&2
-		tail -5 /tmp/ios-fsck.$$ >&2
-		fsck_failed=1
-	fi
-	rm -f /tmp/ios-fsck.$$
-	hdiutil detach "$chk" -quiet -force 2>/dev/null || true
-	[ -z "${fsck_failed:-}" ] || exit 1
-else
-	echo "   ERROR: could not attach $img to verify it" >&2
-	exit 1
-fi
 ls -lh "$img"
 shasum -a 256 "$img"

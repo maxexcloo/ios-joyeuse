@@ -4,9 +4,8 @@
 #   tools/mkiosroot-macos.sh OS.dmg SYSTEMOS.dmg APPOS.dmg OUT.img [SIZE]
 #
 # The DMGs attach with hdiutil (native APFS) and the volume is made with
-# newfs_hfs, both as an ordinary user. The single privileged step is the copy,
-# so that owners/modes match iOS (root, _logd 272, mobile 501); that is what
-# the one sudo prompt is for. Produces a raw HFS+ image.
+# newfs_hfs as an ordinary user. The copy and finalisation use sudo so
+# owners and modes match iOS (root, _logd 272, mobile 501).
 set -euo pipefail
 [[ $# -ge 4 ]] || { sed -n '2,9p' "$0"; exit 2; }
 
@@ -76,7 +75,7 @@ echo "   $dev -> $mnt"
 
 echo "== the next step copies ~11 GiB as root (one sudo prompt)"
 # The build runs detached, so sudo has no terminal. A native dialog collects
-# the password; this is the only privileged step and it validates once here.
+# the password once here.
 if ! sudo -n true 2>/dev/null; then
 	export SUDO_ASKPASS="$repo/tools/askpass.sh"
 	sudo -A -v || { echo "no sudo: cannot set owners as root" >&2; exit 1; }
@@ -95,11 +94,13 @@ copy() {  # srcdir dstdir
 copy "$osvol" "$mnt"
 copy "$sysvol" "$mnt/private/preboot/Cryptexes/OS"
 copy "$appvol" "$mnt/private/preboot/Cryptexes/App"
+$SUDO "$repo/tools/root-finalize.sh" "$mnt"
 
 sync
 diskutil unmount "$dev" >/dev/null
+$SUDO diskutil verifyVolume "$dev"
 hdiutil detach "$dev" -quiet -force
-detach_all
-rdev=()
-$SUDO "$repo/tools/root-resume.sh" "$out"
+unset "rdev[$((${#rdev[@]} - 1))]"
+ls -lh "$out"
+shasum -a 256 "$out"
 echo "built: $out"
