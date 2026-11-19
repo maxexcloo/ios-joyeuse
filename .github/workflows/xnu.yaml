@@ -33,6 +33,11 @@ jobs:
         with:
           persist-credentials: false
 
+      - name: Set Up Shared Tools & Tasks
+        uses: maxexcloo/dotfiles/.github/actions/mise@main
+        with:
+          tools: python
+
       - name: Fetch Build Script
         run: |
           git init -q dxb
