@@ -86,7 +86,8 @@ if [ -d "$dsc" ]; then
 	n=0
 	for f in "$dsc"/*; do
 		[ -e "$f" ] || continue
-		ln -f "$f" "$dst/${f##*/}" && n=$((n + 1))
+		ln -f "$f" "$dst/${f##*/}"
+		n=$((n + 1))
 	done
 	echo "   $n shared-cache files linked"
 else
