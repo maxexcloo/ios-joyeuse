@@ -30,10 +30,6 @@ def os_version_field(version, patch):
     return (a << 25) | (b << 18) | (c << 11) | ((y - 2000) << 4) | m
 
 
-def pad(data, page):
-    return data + b"\0" * (-len(data) % page)
-
-
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("out")
@@ -84,17 +80,19 @@ def main():
 
     hdr += struct.pack("<IQI", 0, 0, 1660)
     hdr += struct.pack("<IQ", len(dtb), 0x1F00000)
-    body = b"".join(pad(p, PAGE) for p in (kernel, ramdisk, dtb))
 
     fd = os.open(a.out, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
     with os.fdopen(fd, "wb") as f:
         os.fchmod(f.fileno(), 0o600)
-        f.write(pad(hdr, PAGE) + body)
+        for part in (hdr, kernel, ramdisk, dtb):
+            f.write(part)
+            f.write(b"\0" * (-len(part) % PAGE))
+        size = f.tell()
     print(
         f"{a.out}: header v2 page {PAGE} "
         f"kernel {len(kernel)} ramdisk {len(ramdisk)} dtb {len(dtb)} "
         f"os {OS_VERSION}/{OS_PATCH_LEVEL} "
-        f"total {len(pad(hdr, PAGE) + body)}"
+        f"total {size}"
     )
 
 

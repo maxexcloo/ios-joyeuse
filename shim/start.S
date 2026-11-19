@@ -39,22 +39,6 @@ _start:
 3:	wfe
 	b	3b
 
-/* PSCI CPU_ON target. x0 = context id = cpu index (1..7). */
-	.globl secondary_entry
-secondary_entry:
-	msr	daifset, #0xf
-	msr	spsel, #1
-	adr	x1, _sec_stacks
-	add	x1, x1, x0, lsl #12
-	add	x1, x1, #0x1000
-	mov	sp, x1
-	adr	x1, vectors
-	msr	vbar_el1, x1
-	isb
-	bl	secondary_main
-4:	wfe
-	b	4b
-
 /*
  * Exception vectors. Each slot stashes x29/x30, loads its slot number
  * and jumps to the common path, which saves x0-x28 and calls

@@ -44,8 +44,6 @@ def main():
     ap.add_argument("out", type=Path)
     a = ap.parse_args()
     dtb, payload, out = (p.resolve() for p in (a.dtb, a.payload, a.out))
-    dtb.read_bytes()
-    payload.read_bytes()
     out.parent.mkdir(parents=True, exist_ok=True)
     # Clang otherwise turns switch results into absolute string-pointer tables.
     flags = (
@@ -70,7 +68,6 @@ def main():
             "start.S",
             "shim.c",
             "console.c",
-            "mmu.c",
             "fdt.c",
             "loader.c",
             "ufs.c",
@@ -119,11 +116,12 @@ def main():
         )
         # Payloads can contain Wi-Fi credentials from --cmdline-file.
         fd = os.open(out, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
-        with os.fdopen(fd, "wb") as f:
-            os.fchmod(f.fileno(), 0o600)
-            f.write(candidate.read_bytes())
+        with candidate.open("rb") as src, os.fdopen(fd, "wb") as dest:
+            os.fchmod(dest.fileno(), 0o600)
+            shutil.copyfileobj(src, dest)
     print(f"{out}: {size}-byte shim; ARM64 header and relocations verified")
-    print(f"{hashlib.sha256(out.read_bytes()).hexdigest()}  {out.name}")
+    with out.open("rb") as image:
+        print(f"{hashlib.file_digest(image, 'sha256').hexdigest()}  {out.name}")
 
 
 if __name__ == "__main__":
