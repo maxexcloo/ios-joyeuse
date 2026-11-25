@@ -122,7 +122,7 @@ new file mode 100644
 index 0000000..c229b89
 --- /dev/null
 +++ b/iokit/Kernel/arm/SweetNativeAdreno.cpp
-@@ -0,0 +1,140 @@
+@@ -0,0 +1,162 @@
 +/* SPDX-License-Identifier: MIT
 + * Sweet/A618 adapter for the MIT UniXNU ring core. Kernel callers only.
 + * Keeps the proven 16K-host/4K-GPU mappings and existing CP owner alive.
@@ -150,8 +150,29 @@ index 0000000..c229b89
 + __asm__ volatile("dmb oshld" ::: "memory");
 + return value;
 +}
++static int ensure_ahb_fence_open()
++{
++ if(!board.gmu)return 1;
++ /* GMU-relative byte offsets: CTRL 0x24c48, STATUS 0x24c4c.
++  * STATUS bit 0 set means fenced; only request open when needed. */
++ uint32_t status=reg_read(board.gmu,A618_GMU_AHB_FENCE_STATUS);
++ if(status==UINT32_MAX)return 1;
++ if(status&1) {
++  *reinterpret_cast<volatile uint32_t *>(board.gmu+0x24c48)=0;
++  __asm__ volatile("dsb oshst" ::: "memory");
++  (void)reg_read(board.gmu,0x24c48);
++ }
++ for(unsigned us=0;us<=1000;us+=10) {
++  status=reg_read(board.gmu,A618_GMU_AHB_FENCE_STATUS);
++  if(status==UINT32_MAX)return 1;
++  if(!(status&1))return 0;
++  if(us<1000)IODelay(10);
++ }
++ return 1;
++}
 +static bool faulted()
 +{
++ if(ensure_ahb_fence_open())return true;
 + const uint32_t irq=reg_read(board.core,0x208c), hw=reg_read(board.core,0x2084);
 + const uint32_t fsr=reg_read(board.smmu,0x8058), gmu=reg_read(board.gmu,0x14648);
 + const uint32_t global=reg_read(board.core,0x804);
@@ -164,6 +185,7 @@ index 0000000..c229b89
 +extern "C" void sweet_native_adreno_fault_report(const char *why)
 +{
 + if(!board.core || !board.smmu || !board.gmu)return;
++ if(ensure_ahb_fence_open()) {IOLog("SWEET RENDER: GPU LOST (%s): GMU AHB fence failed to open\n",why);return;}
 + const uint32_t irq=reg_read(board.core,0x208c), hw=reg_read(board.core,0x2084);
 + const uint32_t fsr=reg_read(board.smmu,0x8058), gmu=reg_read(board.gmu,0x14648);
 + const uint32_t global=reg_read(board.core,0x804);
@@ -174,7 +196,7 @@ index 0000000..c229b89
 +}
 +static int io_read(void *,uint32_t index,uint32_t *value)
 +{
-+ if(!value || index>=0x10000 || faulted())return 1;
++ if(!value || index>=0x10000 || ensure_ahb_fence_open() || faulted())return 1;
 + *value=reg_read(board.core,index*4);
 + return *value==UINT32_MAX;
 +}
@@ -186,7 +208,7 @@ index 0000000..c229b89
 +static int io_write(void *,uint32_t index,uint32_t value)
 +{
 + /* Adoption writes nothing; runtime submission may only commit WPTR. */
-+ if(index!=0x807 || value>=8192 || faulted())return 1;
++ if(index!=0x807 || value>=8192 || ensure_ahb_fence_open() || faulted())return 1;
 + for(unsigned us=0;us<1000;us+=10) {
 +  __asm__ volatile("dmb oshst" ::: "memory");
 +  *reinterpret_cast<volatile uint32_t *>(board.core+index*4)=value;

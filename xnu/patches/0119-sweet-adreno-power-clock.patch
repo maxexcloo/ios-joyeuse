@@ -1074,7 +1074,7 @@ index 0000000..638a4d5
 +static void
 +sweet_gpu_levels_prepare(void)
 +{
-+	uint32_t target = 800000u;
++	uint32_t target = 565000u;
 +	PE_parse_boot_argn("sweetgpukhz", &target, sizeof(target));
 +	a618_gpu_level_count = 0;
 +	unsigned count = 0;

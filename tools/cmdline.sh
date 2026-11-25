@@ -1,30 +1,31 @@
 #!/bin/bash
 # Trim a kernel's boot arguments for an iteration build.
 #
-#   tools/cmdline.sh BASE|good|wifi [ARG=VAL ...]   print the merged cmdline
+#   tools/cmdline.sh BASE|good|gpu|wifi [ARG=VAL ...]   print the merged cmdline
 #
 # BASE is a file holding a cmdline, the word "good" for the proven 0098 line,
-# or "wifi" for that line plus modem=1 wifi=1. Arguments are merged by name, so
-# repeating one replaces it instead of appending a duplicate (a real footgun
-# with xnu: the first copy wins for some args, the last for others).
+# "gpu" for the experimental GPU, or "wifi" for modem=1 wifi=1. Arguments are
+# merged by name because XNU reads duplicate arguments inconsistently.
 #
 # Removes debug-only weight while debugging a feature:
 #   -enable_kprintf_spam   floods the 4 MiB ring, hides the lines you want
 #   keep  panichalt=1      freeze on panic instead of rebooting into Android
 #   keep  ufslogsecs=2     flush the log ring every 2 s (crash survives)
 set -euo pipefail
-base=${1:?usage: cmdline.sh BASE|good|wifi [ARG=VAL ...]}
+base=${1:?usage: cmdline.sh BASE|good|gpu|wifi [ARG=VAL ...]}
 shift
 
 if [ "$base" = good ]; then
 	# The exact command line reported for the upstream 0098 boot.
 	base_line='debug=0xc serial=3 cpus=8 keepsyms=1 -enable_kprintf_spam -noprogress ufsroot=iosroot rd=ufsroot0 unentitled_ios_sim_launch=1 ignition_level=1 wdt_test=no_user_checkin ufsrw=1 rootrw=1 launchd_unsecure_cache=1 wdt=-1 sweetfb_hz=30 sweettouchdelay=5 panichalt=1 ufslogsecs=2 sweetfb_noconsole=1'
+elif [ "$base" = gpu ]; then
+	base_line="$("$0" good) sweetgpu=9"
 elif [ "$base" = wifi ]; then
 	base_line="$("$0" good) modem=1 wifi=1"
 elif [ -f "$base" ]; then
 	base_line=$(cat "$base")
 else
-	echo "no such cmdline file: $base (or use 'good' or 'wifi')" >&2; exit 1
+	echo "no such cmdline file: $base (or use 'good', 'gpu' or 'wifi')" >&2; exit 1
 fi
 
 python3 - "$base_line" "$@" <<'PY'

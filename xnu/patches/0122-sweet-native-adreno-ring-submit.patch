@@ -158,7 +158,7 @@ new file mode 100644
 index 0000000..9bd17ad
 --- /dev/null
 +++ b/iokit/Kernel/arm/unixnu/NativeAdrenoRing.cpp
-@@ -0,0 +1,379 @@
+@@ -0,0 +1,385 @@
 +/* SPDX-License-Identifier: MIT */
 +#include "NativeAdrenoRing.h"
 +#include "AdrenoPM4.h"
@@ -413,8 +413,14 @@ index 0000000..9bd17ad
 +       io->read32(io->cookie,RingRptrAddress+1,&shi) || io->read32(io->cookie,RingWptr,&wptr) ||
 +       io->read32(io->cookie,0x808,&sqe))return kIOReturnIOError;
 +    const uint32_t expected=(1u<<27)|(2u<<8)|ilog2(ring_bytes/8);
++    const uint32_t shadow_value=*shadow;
++    const uint32_t fence_value=*static_cast<volatile uint32_t *>(fence);
 +    if(lo!=(uint32_t)ring_iova || hi || slo!=(uint32_t)shadow_iova || shi || control!=expected || sqe!=1 ||
-+       wptr>=ring_bytes/4 || *shadow!=wptr || *static_cast<volatile uint32_t *>(fence)!=seed)return kIOReturnNotReady;
++       wptr>=ring_bytes/4 || shadow_value!=wptr || fence_value!=seed) {
++        IOLog("SWEET NATIVE ADRENO: A618 adopt mismatch lo=%#x hi=%#x slo=%#x shi=%#x control=%#x expected=%#x sqe=%#x wptr=%#x shadow=%#x fence=%#x seed=%#x\n",
++            lo,hi,slo,shi,control,expected,sqe,wptr,shadow_value,fence_value,seed);
++        return kIOReturnNotReady;
++    }
 +    io_=*io;cache_=*cache;ring_=static_cast<volatile uint32_t *>(ring);ring_bytes_=ring_bytes;ring_iova_=ring_iova;
 +    fence_=static_cast<volatile uint32_t *>(fence);fence_bytes_=fence_bytes;fence_iova_=fence_iova;fence_word_=0;
 +    a6xx_=true;a6xx_shadow_=shadow;a6xx_shadow_iova_=shadow_iova;

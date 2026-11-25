@@ -1,0 +1,35 @@
+diff --git a/crates/metal2vulkan/src/env_vars.rs b/crates/metal2vulkan/src/env_vars.rs
+index ebb04f4..115724d 100644
+--- a/crates/metal2vulkan/src/env_vars.rs
++++ b/crates/metal2vulkan/src/env_vars.rs
+@@ -69,6 +69,16 @@ pub fn lane_validation() -> Option<OsString> {
+     std::env::var_os("METAL2VULKAN_LANE_VALIDATION")
+ }
+ 
++/// Whether `half` results are rounded to the `half` grid after every operation (Metal's
++/// semantics, `narrow::round`): only with `SWEET_M2V_EXACT_HALF` set and neither empty nor `0`.
++/// ios-sweet bridge 0201: by default a `half` is held in its `f32` between operations and rounds
++/// only where it is stored (to bits, a texel, an attachment). 0157 hardware: CoreAnimation's
++/// `half`-heavy fragment shaders spent ~96% of the GPU frame in draws at ~300 Mpx/s on an Adreno
++/// 618, each `half` operation followed by a conversion to 16 bits and back behind a barrier.
++pub fn exact_half() -> bool {
++    std::env::var_os("SWEET_M2V_EXACT_HALF").is_some_and(|value| !value.is_empty() && value != "0")
++}
++
+ /// Whether metal2vulkan-runtime logs each render `VkPipeline` it makes (`REGISTRY`): set, and
+ /// neither empty nor `0`. A default-off diagnostic: it changes no pipeline, only what is printed.
+ pub fn log_pipelines() -> bool {
+diff --git a/crates/metal2vulkan/src/lower/arith/narrow.rs b/crates/metal2vulkan/src/lower/arith/narrow.rs
+index d42bc07..f9f7c8a 100644
+--- a/crates/metal2vulkan/src/lower/arith/narrow.rs
++++ b/crates/metal2vulkan/src/lower/arith/narrow.rs
+@@ -100,6 +100,9 @@ pub fn round_words_in(q: QuantizeForm, f: Form) -> u32 {
+ /// [`converted`]'s alone, which is the same value where the device's conversion is Metal's.
+ pub fn round(fb: &mut FunctionBuilder<'_>, f: Form, x: Value) -> BResult<Value> {
+     match f.held {
++        // ios-sweet bridge 0201: held in `f32` between operations unless Metal's rounding is asked
++        // for (`env_vars::exact_half`); stores still convert exactly.
++        Held::Float(FloatFmt::Half) if !crate::env_vars::exact_half() => Ok(x),
+         Held::Float(FloatFmt::Half) => {
+             let wide = f.with(Held::Float(FloatFmt::F32));
+             match fb.module().quantize_form() {

@@ -1251,10 +1251,13 @@ index efa2806..6a64a2b 100644
  /* Geometry from the creation properties (IOSurface.h keys). */
  static IOReturn
  sweet_surface_layout(SweetSurface *s, OSDictionary *props)
-@@ -294,11 +306,34 @@ sweet_surface_layout(SweetSurface *s, OSDictionary *props)
+@@ -294,11 +306,37 @@ sweet_surface_layout(SweetSurface *s, OSDictionary *props)
  	    s->bytesPerElement > 64 || s->elementWidth == 0 || s->elementHeight == 0) {
  		return kIOReturnBadArgument;
  	}
++	if (s->pixelFormat == 0x62336138) {
++		return kIOReturnBadArgument;
++	}
 -	s->bytesPerRow = sweet_dict_u32(props, "IOSurfaceBytesPerRow",
 -	    sweet_row_bytes(s->width, s->elementWidth, s->bytesPerElement));
 +	s->bytesPerRow = sweet_gles_rows(sweet_dict_u32(props,"IOSurfaceBytesPerRow",0),

@@ -1,0 +1,24 @@
+diff --git a/crates/metal2vulkan/src/lower/arith/extended_range/blend.rs b/crates/metal2vulkan/src/lower/arith/extended_range/blend.rs
+index 0b004f2..d39d89d 100644
+--- a/crates/metal2vulkan/src/lower/arith/extended_range/blend.rs
++++ b/crates/metal2vulkan/src/lower/arith/extended_range/blend.rs
+@@ -765,10 +765,16 @@ fn planned_for(
+     let narrow = narrow(eq);
+     // The rounded model holds for any blend into an `_sRGB` form, a mask of one color channel,
+     // and the color channels' blend color difference.
++    // Sweet: build an unmeasured fast-math blend into an `_sRGB` form with that rounded model
++    // instead of refusing the pipeline; it differs from Metal's fast-math result only by
++    // rounding. iOS 16 AegirPoster's star/luna/earth passes (BGR10_XR_sRGB, source-over)
++    // otherwise get no pipeline and the wallpaper aborts.
++    let math = if math == BlendMath::Fast && srgb && (!narrow || masked) {
++        BlendMath::Rounded
++    } else {
++        math
++    };
+     let fast = math == BlendMath::Fast;
+-    if fast && srgb && (!narrow || masked) {
+-        return Err(refused(ExtendedRangeBlend::SrgbForm));
+-    }
+     let opaque_ = !has_alpha;
+     let color = match colors {
+         0 => None,

@@ -1,0 +1,66 @@
+diff --git a/crates/metal2vulkan-runtime/src/render.rs b/crates/metal2vulkan-runtime/src/render.rs
+index 870bdb1..d76582c 100644
+--- a/crates/metal2vulkan-runtime/src/render.rs
++++ b/crates/metal2vulkan-runtime/src/render.rs
+@@ -3061,6 +3061,7 @@ impl RenderCommandEncoder {
+                 color.copied_resolve = None;
+             }
+         }
++        sweet_pass_audit(&layout, instances.len());
+         if let Some(ds) = layout.depth_stencil.as_mut().filter(|ds| !ds.hidden) {
+             let unknown = |aspect: Option<AspectTarget>| {
+                 aspect.is_some_and(|a| a.store == StoreAction::Unknown)
+@@ -8536,3 +8537,53 @@ mod tests {
+         }
+     }
+ }
++
++/// Sweet: what Metal asked of each render pass, summed over 10 s and appended to
++/// `/var/local/m2v-pass-audit.log` when `SWEET_M2V_PASS_AUDIT` is set (a profile of the pass mix, not a trace).
++fn sweet_pass_audit(layout: &PassLayout, instances: usize) {
++    use std::collections::HashMap;
++    use std::io::Write;
++    use std::sync::{Mutex, OnceLock};
++    use std::time::{Duration, Instant};
++    static ON: OnceLock<bool> = OnceLock::new();
++    static STATE: OnceLock<Mutex<(Instant, HashMap<String, (u64, u64)>)>> = OnceLock::new();
++    if !*ON.get_or_init(|| std::env::var_os("SWEET_M2V_PASS_AUDIT").is_some()) {
++        return;
++    }
++    let mut key = format!("{}x{} s{} inst{}", layout.extent[0], layout.extent[1], layout.samples, instances);
++    for (index, color) in layout.colors.iter().enumerate() {
++        if let Some(color) = color {
++            key += &format!(" c{}[{:?}/{:?}{}]", index, color.load, color.store, if color.resolve.is_some() { "+resolve" } else { "" });
++        }
++    }
++    if let Some(ds) = layout.depth_stencil.as_ref().filter(|ds| !ds.hidden) {
++        key += &format!(
++            " ds[d {:?}/{:?} s {:?}/{:?}]",
++            ds.depth.map(|a| a.load),
++            ds.depth.map(|a| a.store),
++            ds.stencil.map(|a| a.load),
++            ds.stencil.map(|a| a.store)
++        );
++    } else if layout.depth_stencil.is_some() {
++        key += " hidden-ds";
++    }
++    let pixels = layout.extent[0] as u64 * layout.extent[1] as u64;
++    let state = STATE.get_or_init(|| Mutex::new((Instant::now(), HashMap::new())));
++    let Ok(mut state) = state.lock() else { return };
++    let entry = state.1.entry(key).or_insert((0, 0));
++    entry.0 += 1;
++    entry.1 += pixels;
++    if state.0.elapsed() >= Duration::from_secs(10) {
++        let mut rows: Vec<_> = state.1.drain().collect();
++        rows.sort_by(|a, b| b.1 .1.cmp(&a.1 .1));
++        if let Ok(mut file) = std::fs::OpenOptions::new().create(true).append(true).open("/var/local/m2v-pass-audit.log") {
++            let total: u64 = rows.iter().map(|r| r.1 .0).sum();
++            let mpx: u64 = rows.iter().map(|r| r.1 .1).sum::<u64>() / 1_000_000;
++            let _ = writeln!(file, "WINDOW passes={} Mpx={}", total, mpx);
++            for (key, (count, pixels)) in rows.iter().take(14) {
++                let _ = writeln!(file, "  n={} Mpx={} {}", count, pixels / 1_000_000, key);
++            }
++        }
++        state.0 = Instant::now();
++    }
++}

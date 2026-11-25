@@ -1,0 +1,76 @@
+diff --git a/phone/metal2/NativeBridgeMetalFrontend.mm b/phone/metal2/NativeBridgeMetalFrontend.mm
+index 83fd1c7..8439a57 100644
+--- a/phone/metal2/NativeBridgeMetalFrontend.mm
++++ b/phone/metal2/NativeBridgeMetalFrontend.mm
+@@ -586,7 +586,7 @@ static void waitForResource(id resource) {
+ @implementation NBComputeEncoder
+ - (MTLDispatchType)dispatchType {return MTLDispatchTypeSerial;}
+ - (void)setComputePipelineState:(id<MTLComputePipelineState>)state {
+- if(![(id)state isKindOfClass:[NBComputePipeline class]]){[self.commandBuffer refuse:@"foreign compute pipeline"];return;}
++ if(![(id)state isKindOfClass:[NBComputePipeline class]]){[self.commandBuffer refuse:state?[NSString stringWithFormat:@"foreign compute pipeline (%s)",object_getClassName((id)state)]:@"nil compute pipeline (its creation failed)"];return;}
+  [self check:nmb_compute_set_pipeline(self.handle,[(NBComputePipeline *)state handle]) what:"setComputePipelineState"];
+ }
+ - (void)setBuffer:(id<MTLBuffer>)b offset:(NSUInteger)o atIndex:(NSUInteger)i {[self buffer:b offset:o index:i stage:0];}
+@@ -618,7 +618,7 @@ static void waitForResource(id resource) {
+ @end
+ @implementation NBRenderEncoder
+ - (void)setRenderPipelineState:(id<MTLRenderPipelineState>)state {
+- if(![(id)state isKindOfClass:[NBRenderPipeline class]]){[self.commandBuffer refuse:@"foreign render pipeline"];return;}
++ if(![(id)state isKindOfClass:[NBRenderPipeline class]]){[self.commandBuffer refuse:state?[NSString stringWithFormat:@"foreign render pipeline (%s)",object_getClassName((id)state)]:@"nil render pipeline (its creation failed)"];return;}
+  [self check:nmb_render_set_pipeline(self.handle,[(NBRenderPipeline *)state handle]) what:"setRenderPipelineState"];
+ }
+ - (void)setVertexBuffer:(id<MTLBuffer>)b offset:(NSUInteger)o atIndex:(NSUInteger)i {[self buffer:b offset:o index:i stage:1];}
+@@ -1502,6 +1502,53 @@ static char sweetMemoryOwnerKey;
+  if(!handle)return failWith<id<MTLRenderPipelineState>>(error,@"render pipeline",nil);
+  NBRenderPipeline *state=[NBRenderPipeline new];state.handle=handle;gPipelines++;if(error)*error=nil;return (id<MTLRenderPipelineState>)state;
+ }
++// Asynchronous constructors (ClockKit/NanoUniverse posters use them). Without
++// these the inherited _MTLDevice paths never reach the native runtime. Each
++// copies its descriptor and runs the synchronous native creation off the
++// caller's thread, then reports the actual result or error once.
++static dispatch_queue_t pipelineQueue() {
++ static dispatch_queue_t queue;static dispatch_once_t once;
++ dispatch_once(&once,^{queue=dispatch_queue_create("SweetMetal2.pipelines",DISPATCH_QUEUE_CONCURRENT);});
++ return queue;
++}
++- (void)newRenderPipelineStateWithDescriptor:(MTLRenderPipelineDescriptor *)d completionHandler:(MTLNewRenderPipelineStateCompletionHandler)handler {
++ MTLRenderPipelineDescriptor *copy=[d copy];id<MTLDevice> device=(id<MTLDevice>)self;
++ dispatch_async(pipelineQueue(),^{
++  NSError *error=nil;id<MTLRenderPipelineState> state=[device newRenderPipelineStateWithDescriptor:copy options:MTLPipelineOptionNone reflection:nil error:&error];
++  if(handler)handler(state,error);
++ });
++}
++- (void)newRenderPipelineStateWithDescriptor:(MTLRenderPipelineDescriptor *)d options:(MTLPipelineOption)options
++                           completionHandler:(MTLNewRenderPipelineStateWithReflectionCompletionHandler)handler {
++ MTLRenderPipelineDescriptor *copy=[d copy];id<MTLDevice> device=(id<MTLDevice>)self;
++ dispatch_async(pipelineQueue(),^{
++  NSError *error=nil;id<MTLRenderPipelineState> state=[device newRenderPipelineStateWithDescriptor:copy options:options reflection:nil error:&error];
++  if(handler)handler(state,nil,error);
++ });
++}
++- (void)newComputePipelineStateWithFunction:(id<MTLFunction>)function completionHandler:(MTLNewComputePipelineStateCompletionHandler)handler {
++ id<MTLDevice> device=(id<MTLDevice>)self;
++ dispatch_async(pipelineQueue(),^{
++  NSError *error=nil;id<MTLComputePipelineState> state=[device newComputePipelineStateWithFunction:function options:MTLPipelineOptionNone reflection:nil error:&error];
++  if(handler)handler(state,error);
++ });
++}
++- (void)newComputePipelineStateWithFunction:(id<MTLFunction>)function options:(MTLPipelineOption)options
++                          completionHandler:(MTLNewComputePipelineStateWithReflectionCompletionHandler)handler {
++ id<MTLDevice> device=(id<MTLDevice>)self;
++ dispatch_async(pipelineQueue(),^{
++  NSError *error=nil;id<MTLComputePipelineState> state=[device newComputePipelineStateWithFunction:function options:options reflection:nil error:&error];
++  if(handler)handler(state,nil,error);
++ });
++}
++- (void)newComputePipelineStateWithDescriptor:(MTLComputePipelineDescriptor *)d options:(MTLPipelineOption)options
++                            completionHandler:(MTLNewComputePipelineStateWithReflectionCompletionHandler)handler {
++ MTLComputePipelineDescriptor *copy=[d copy];id<MTLDevice> device=(id<MTLDevice>)self;
++ dispatch_async(pipelineQueue(),^{
++  NSError *error=nil;id<MTLComputePipelineState> state=[device newComputePipelineStateWithDescriptor:copy options:options reflection:nil error:&error];
++  if(handler)handler(state,nil,error);
++ });
++}
+ - (id<MTLBinaryArchive>)newBinaryArchiveWithDescriptor:(MTLBinaryArchiveDescriptor *)d error:(NSError **)error {
+  if(d.url && !d.url.isFileURL){if(error)*error=nbError(@"a file URL is required");return nil;}
+  NmbBinaryArchive *handle=nmb_binary_archive_new(gDevice,d.url?d.url.fileSystemRepresentation:nullptr);

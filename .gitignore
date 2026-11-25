@@ -4,6 +4,7 @@ fw/
 ipsw/
 logs/
 research/
+gpu-userland/out/
 
 # generated images, kernels and build output
 out/

@@ -1,0 +1,15 @@
+--- a/phone/metal2/NativeBridgeMetalFrontend.mm
++++ b/phone/metal2/NativeBridgeMetalFrontend.mm
+@@ -1583,6 +1583,12 @@
+  // MTLTextureImplementation." on every miss (~600 lines/s from backboardd while scrolling).
+  {Protocol *tp=objc_getProtocol("MTLTextureImplementation");if(tp)class_addProtocol([NBTexture class],tp);
+   NBLOG(@"native-metal: MTLTextureImplementation %s",tp?([NBTexture conformsToProtocol:tp]?"adopted":"not adopted"):"missing");}
++ // Metal pipeline descriptors validate public function protocol identity.
++ // NBFunction owns a real NmbFunction; adopting the protocol does not alter
++ // compilation, shader handles, validation modes or device capabilities.
++ {Protocol *functionProtocol=objc_getProtocol("MTLFunction");
++  if(functionProtocol)class_addProtocol([NBFunction class],functionProtocol);
++  NBLOG(@"native-metal: MTLFunction %s",functionProtocol && [NBFunction conformsToProtocol:functionProtocol]?"adopted":"missing");}
+  objc_registerClassPair(cls);
+  gDeviceObject=[cls new];
+  return gDeviceObject;

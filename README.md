@@ -25,7 +25,7 @@ gh workflow run xnu.yaml
 gh run download RUN_ID -n joyeuse-xnu -D xnu/out
 ```
 
-Hardware ADTs need the stock boot image, the iPhone X `d22ap.adt` device tree (IM4P or unwrapped), the phone's FT8756 firmware and its Wi-Fi and Bluetooth addresses (six raw bytes each), all in `fw/`. Keep these inputs and the generated ADT and payload private.
+Hardware ADTs need the stock boot image, the iPhone X `d22ap.adt` device tree (IM4P or unwrapped), the phone's FT8756 and Adreno firmware, and its Wi-Fi and Bluetooth addresses (six raw bytes each), all in `fw/`. `tools/sweet-adreno-firmware.py` checks the Adreno inputs. Keep these inputs and the generated ADT and payload private.
 
 ```sh
 mkdir -p out
@@ -36,7 +36,7 @@ python tools/mkpayload.py xnu/out/kernel.development.sweet out/joyeuse.adt out/p
 mise run build -- out/stock/dtb out/payload.bin out/shim-boot.img
 ```
 
-`cmdline.sh good` prints the upstream 0098 arguments; later `NAME=VALUE` arguments replace them (for example `cpus=1`). The `wifi` profile adds the experimental radio from patches 0099–0104; keep credentials in a private command-line file.
+`cmdline.sh good` prints the upstream 0098 arguments. The `gpu` profile adds experimental Adreno rendering and the `wifi` profile adds the experimental radio from patches 0099–0104. Later `NAME=VALUE` arguments replace profile values (for example `cpus=1`). Keep credentials in a private command-line file.
 
 Build the root from the OS, SystemOS and AppOS DMGs named by the IPSW's D22AP `BuildManifest.plist`:
 

@@ -1,0 +1,36 @@
+diff --git a/phone/metal2/NativeBridgeMetalFrontend.mm b/phone/metal2/NativeBridgeMetalFrontend.mm
+index 8439a57..6f40189 100644
+--- a/phone/metal2/NativeBridgeMetalFrontend.mm
++++ b/phone/metal2/NativeBridgeMetalFrontend.mm
+@@ -9,6 +9,7 @@
+ #import <Foundation/Foundation.h>
+ #import <Metal/Metal.h>
+ #import <IOSurface/IOSurfaceRef.h>
++#include <set>
+ #import <objc/runtime.h>
+ #include <algorithm>
+ #include <atomic>
+@@ -1426,8 +1427,23 @@ static char sweetMemoryOwnerKey;
+ }
+ // The surface's pages are the texels: its mapping in this process is imported without a copy (pinned by the kernel, mapped into the GPU's
+ // 4 KiB context by Turnip), so every process that imports the surface renders and samples the same memory.
++// Sweet 0004: the garbled Control Center glyphs line up with SpringBoard's LA08 (2-byte luminance/alpha) surfaces. Log each
++// distinct (surface format, bytes per element, texture format, swizzle, usage) once, so the format CoreAnimation asks for is known.
++static void noteSurfaceTexture(MTLTextureDescriptor *d,IOSurfaceRef surface) {
++ static std::mutex lock;static std::set<std::string> seen;
++ const OSType f=IOSurfaceGetPixelFormat(surface);const MTLTextureSwizzleChannels w=d.swizzle;
++ char key[96];snprintf(key,sizeof key,"%08x/%zu/%lu/%02x%02x%02x%02x/%lx",(unsigned)f,IOSurfaceGetBytesPerElement(surface),(unsigned long)d.pixelFormat,
++  (unsigned)w.red,(unsigned)w.green,(unsigned)w.blue,(unsigned)w.alpha,(unsigned long)d.usage);
++ {std::lock_guard<std::mutex> guard(lock);if(seen.size()>=64 || !seen.insert(key).second)return;}
++ char line[256];snprintf(line,sizeof line,"surface-texture: surface %u '%c%c%c%c' bpe %zu %zux%zu bpr %zu -> texture format %lu %lux%lu usage %#lx swizzle %u%u%u%u",
++  IOSurfaceGetID(surface),(char)(f>>24),(char)(f>>16),(char)(f>>8),(char)f,IOSurfaceGetBytesPerElement(surface),IOSurfaceGetWidth(surface),
++  IOSurfaceGetHeight(surface),IOSurfaceGetBytesPerRow(surface),(unsigned long)d.pixelFormat,(unsigned long)d.width,(unsigned long)d.height,
++  (unsigned long)d.usage,(unsigned)w.red,(unsigned)w.green,(unsigned)w.blue,(unsigned)w.alpha);
++ sm2_logs(line);
++}
+ - (id<MTLTexture>)newTextureWithDescriptor:(MTLTextureDescriptor *)d iosurface:(IOSurfaceRef)surface plane:(NSUInteger)plane {
+  if(!surface || !d || plane || IOSurfaceGetPlaneCount(surface))return nil;
++ noteSurfaceTexture(d,surface);
+  void *base=IOSurfaceGetBaseAddress(surface);const size_t page=(size_t)getpagesize(),allocation=IOSurfaceGetAllocSize(surface);
+  if(!page || (page&(page-1)) || !base || ((uintptr_t)base&(page-1)) || !allocation || allocation>SIZE_MAX-(page-1))return nil;
+  const size_t bytes=(allocation+page-1)&~(page-1);

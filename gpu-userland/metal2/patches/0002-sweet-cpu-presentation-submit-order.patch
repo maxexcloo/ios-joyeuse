@@ -1,0 +1,25 @@
+--- a/phone/metal2/NativeBridgeMetalFrontend.mm
++++ b/phone/metal2/NativeBridgeMetalFrontend.mm
+@@ -937,7 +937,21 @@
+   // Completion owns this reference; the runtime orders the non-owning scheduled callback before it.
+   void *context=(__bridge_retained void *)self;
+   if(nmb_command_buffer_on_completed(_handle,completed,context) &&
+-     nmb_command_buffer_on_scheduled(_handle,scheduled,context) && nmb_command_buffer_commit(_handle))return;
++     nmb_command_buffer_on_scheduled(_handle,scheduled,context) && nmb_command_buffer_commit(_handle)) {
++   // Sweet's panel path CPU-copies IOSurfaces. Publish all real submissions
++   // before CA can issue SwapEnd; the matching kernel waits their CP fences
++   // and acquires source cache lines under the submission gate. Scheduling is
++   // not completion. Preserve the runtime's deadlock checks and error report.
++   // Opt in only with SWEET_CPU_PRESENT_WAIT=1; CA already waits scheduled
++   // in the captured893-buffer trace. Keep donor commit behaviour by default.
++   static const bool cpuPresent=[] {
++    const char *setting=getenv("SWEET_CPU_PRESENT_WAIT");
++    return setting && !strcmp(setting,"1") &&
++      [[NSProcessInfo processInfo].processName isEqualToString:@"backboardd"];
++   }();
++   if(cpuPresent)[self waitUntilScheduled];
++   return;
++  }
+   (void)CFBridgingRelease(context);   // refused registration/commit cannot call the registered handlers
+   [self refuse:[@"commit: " stringByAppendingString:lastError()]];
+  }

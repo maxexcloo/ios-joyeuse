@@ -126,6 +126,10 @@ class Images(unittest.TestCase):
         self.assertEqual(
             chosen.prop("focaltech-firmware"), b"device-supplied touch firmware"
         )
+        adreno = next(node for node in root.children if node.name == "sweet-adreno")
+        self.assertEqual(adreno.prop("gmu-firmware"), bytes(16))
+        self.assertEqual(adreno.prop("zap-reserved-base"), mkadt.u64(0x93B15000))
+        self.assertEqual(adreno.prop("zap-reserved-size"), mkadt.u32(0x2000))
         self.assertIsNone(chosen.prop("sweet-qemu"))
         for name in ("bluetooth0", "ethernet0", "wifi0"):
             self.assertIsNone(chosen.prop("mac-address-" + name))
@@ -261,6 +265,8 @@ class Images(unittest.TestCase):
         good = subprocess.check_output(["bash", script, "good"], text=True).strip()
         wifi = subprocess.check_output(["bash", script, "wifi"], text=True).strip()
         self.assertEqual(wifi, good + " modem=1 wifi=1")
+        gpu = subprocess.check_output(["bash", script, "gpu"], text=True).strip()
+        self.assertEqual(gpu, good + " sweetgpu=9")
         replaced = subprocess.check_output(
             ["bash", script, "good", "cpus=1"], text=True
         ).split()

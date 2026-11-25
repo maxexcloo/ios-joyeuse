@@ -1,0 +1,50 @@
+name: Joyeuse GPU Userland
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  cancel-in-progress: true
+  group: ${{ github.workflow }}-${{ github.ref }}
+
+jobs:
+  build:
+    runs-on: macos-15-intel
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - name: Select Xcode and install dependencies
+        run: |
+          set -euo pipefail
+          XC=$(printf '%s\n' /Applications/Xcode_*.app | sort -V | tail -1)
+          echo "DEVELOPER_DIR=$XC/Contents/Developer" >> "$GITHUB_ENV"
+          sudo xcode-select -s "$XC"
+          xcodebuild -version
+          xcrun --sdk iphoneos --show-sdk-version
+          brew install llvm glslang bison flex ninja
+          echo "$(brew --prefix llvm)/bin:$(brew --prefix bison)/bin:$(brew --prefix flex)/bin:$HOME/.cargo/bin" >> "$GITHUB_PATH"
+          rustup toolchain install 1.98.0 --profile minimal
+          rustup target add aarch64-apple-ios --toolchain 1.98.0
+      - name: Build iOS 16 ARM64 bundle
+        run: python3 gpu-userland/build-sweet-metal2.py
+      - name: Verify ARM64 Mach-O outputs
+        run: |
+          set -euo pipefail
+          file gpu-userland/out/SweetMetal2.bundle/SweetMetal2
+          file gpu-userland/out/SweetMetal2.bundle/libvulkan_freedreno.dylib
+          xcrun vtool -show-build gpu-userland/out/SweetMetal2.bundle/SweetMetal2
+          xcrun vtool -show-build gpu-userland/out/SweetMetal2.bundle/libvulkan_freedreno.dylib
+      - uses: actions/upload-artifact@v7
+        with:
+          name: joyeuse-gpu-userland
+          path: |
+            gpu-userland/out/SweetMetal2.bundle
+            gpu-userland/out/metal2-build.json
+            gpu-userland/out/NativeAdrenoABI.h
+          if-no-files-found: error
+          retention-days: 14

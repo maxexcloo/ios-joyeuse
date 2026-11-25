@@ -56,13 +56,16 @@
  	bool flush = fb->fDirty && (count % fb->fFlushTicks) == 0;
  	uint8_t *rec = NULL;
  	if (flush) {
-@@ -506,6 +532,19 @@
+@@ -506,6 +532,22 @@
  			    args->scalarInput[0] ? "on" : "off");
  		}
  		break;
 +	case kSweetFBRequestPowerChange:
 +		if (args->scalarInputCount >= 1) {
++			bool alwaysOn = false;
++			PE_parse_boot_argn("sweetfb_alwayson", &alwaysOn, sizeof(alwaysOn));
 +			bool off = args->scalarInput[0] == 0;
++			if (alwaysOn) off = false;
 +			IOLockLock(fFB->fLock);
 +			if (off != fFB->fPowerOff) {
 +				fFB->fPowerOff = off;

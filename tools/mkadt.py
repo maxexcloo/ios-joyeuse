@@ -321,14 +321,23 @@ def build(
         ],
     )
 
+    hardware_nodes = []
     if not qemu:
-        chosen.props.extend(
-            [
-                ("focaltech-firmware", 0, Path(touch_firmware).read_bytes()),
-                ("zap-reserved-base", 0, u64(0x93B15000)),
-                *adreno_props,
-            ]
+        chosen.props.append(
+            ("focaltech-firmware", 0, Path(touch_firmware).read_bytes())
         )
+        hardware_nodes = [
+            ufs,
+            node(
+                "sweet-adreno",
+                [
+                    ph(),
+                    ("zap-reserved-base", u64(0x93B15000)),
+                    ("zap-reserved-size", u32(0x2000)),
+                    *((name, value) for name, _, value in adreno_props),
+                ],
+            ),
+        ]
 
     # pmap_compute_max_asids requires the node even when no overrides are set.
     # An absent pmap-max-asids property selects XNU's own MAX_ASIDS default.
@@ -370,7 +379,7 @@ def build(
         ],
         [chosen, defaults, cpus, arm_io, fbcon, buttons]
         + product_nodes
-        + ([] if qemu else [ufs]),
+        + hardware_nodes,
     )
 
 
