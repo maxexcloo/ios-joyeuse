@@ -43,7 +43,9 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("paths", nargs="+", help="OLD NEW OUT, or NEW OUT with --full")
     ap.add_argument("--block", type=int, default=4096)
-    ap.add_argument("--full", action="store_true", help="build a complete sparse image without OLD")
+    ap.add_argument(
+        "--full", action="store_true", help="build a complete sparse image without OLD"
+    )
     a = ap.parse_args()
     if a.full:
         if len(a.paths) != 2:
@@ -82,9 +84,19 @@ def main():
                         runs.append([differs, 1])
 
     with open(new, "rb") as fn, open(out_path, "wb") as out:
-        out.write(SPARSE_HEADER.pack(MAGIC, 1, 0, SPARSE_HEADER.size,
-                                     CHUNK_HEADER.size, bs, nblocks,
-                                     len(runs), 0))
+        out.write(
+            SPARSE_HEADER.pack(
+                MAGIC,
+                1,
+                0,
+                SPARSE_HEADER.size,
+                CHUNK_HEADER.size,
+                bs,
+                nblocks,
+                len(runs),
+                0,
+            )
+        )
         pos = 0
         changed = 0
         for kind, count in runs:
@@ -94,7 +106,9 @@ def main():
                     out.write(FILL_VALUE)
                 else:
                     left = count * bs
-                    out.write(CHUNK_HEADER.pack(RAW, 0, count, CHUNK_HEADER.size + left))
+                    out.write(
+                        CHUNK_HEADER.pack(RAW, 0, count, CHUNK_HEADER.size + left)
+                    )
                     fn.seek(pos * bs)
                     while left:
                         chunk = fn.read(min(left, 8 << 20))

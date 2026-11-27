@@ -1,7 +1,7 @@
 diff --git a/phone/metal2/NativeBridgeMetalFrontend.mm b/phone/metal2/NativeBridgeMetalFrontend.mm
 --- a/phone/metal2/NativeBridgeMetalFrontend.mm
 +++ b/phone/metal2/NativeBridgeMetalFrontend.mm
-@@ -1444,4 +1444,10 @@
+@@ -1444,3 +1444,9 @@
  - (id<MTLTexture>)newTextureWithDescriptor:(MTLTextureDescriptor *)d iosurface:(IOSurfaceRef)surface plane:(NSUInteger)plane {
   if(!surface || !d || plane || IOSurfaceGetPlaneCount(surface))return nil;
 + // Normalize LA08 at the shared IOSurface import boundary before creating

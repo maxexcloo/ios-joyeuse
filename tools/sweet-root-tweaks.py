@@ -81,10 +81,14 @@ def copy_tree_contents(src, dst):
 
 def install_rootless(root):
     if os.geteuid() != 0:
-        raise RuntimeError("rootless files require root and an owners-enabled HFS+ mount")
+        raise RuntimeError(
+            "rootless files require root and an owners-enabled HFS+ mount"
+        )
     bsdtar, gpg = shutil.which("bsdtar"), shutil.which("gpg")
     if not bsdtar or not gpg:
-        raise RuntimeError("bsdtar and gpg are required to install verified rootless artifacts")
+        raise RuntimeError(
+            "bsdtar and gpg are required to install verified rootless artifacts"
+        )
     artifacts = {}
     for name, expected in JB_HASHES.items():
         path = os.path.join(JB_CACHE, name)
@@ -98,14 +102,41 @@ def install_rootless(root):
     with tempfile.TemporaryDirectory(prefix="sweet-jb-") as tmp:
         gh = os.path.join(tmp, "gnupg")
         os.mkdir(gh, 0o700)
-        subprocess.run([gpg, "--batch", "--homedir", gh, "--import", artifacts["procursus-memo.gpg"]], check=True, stdout=subprocess.DEVNULL)
-        fingerprints = subprocess.check_output([gpg, "--batch", "--homedir", gh, "--with-colons", "--fingerprint"], text=True)
+        subprocess.run(
+            [
+                gpg,
+                "--batch",
+                "--homedir",
+                gh,
+                "--import",
+                artifacts["procursus-memo.gpg"],
+            ],
+            check=True,
+            stdout=subprocess.DEVNULL,
+        )
+        fingerprints = subprocess.check_output(
+            [gpg, "--batch", "--homedir", gh, "--with-colons", "--fingerprint"],
+            text=True,
+        )
         if PROCursus_FINGERPRINT not in fingerprints:
             raise RuntimeError("unexpected Procursus signing-key fingerprint")
-        subprocess.run([gpg, "--batch", "--homedir", gh, "--verify", sig, artifacts[bootstrap_name]], check=True)
+        subprocess.run(
+            [
+                gpg,
+                "--batch",
+                "--homedir",
+                gh,
+                "--verify",
+                sig,
+                artifacts[bootstrap_name],
+            ],
+            check=True,
+        )
         jb = os.path.join(root, "private/var/jb")
         os.makedirs(jb, exist_ok=True)
-        subprocess.run([bsdtar, "-xpf", artifacts[bootstrap_name], "-C", jb], check=True)
+        subprocess.run(
+            [bsdtar, "-xpf", artifacts[bootstrap_name], "-C", jb], check=True
+        )
         # Procursus bootstrap archives preserve iOS's /private/etc and /private/var
         # layout. Make the conventional paths resolve inside the rootless prefix.
         for public, private in (("etc", "private/etc"), ("var", "private/var")):
@@ -113,11 +144,18 @@ def install_rootless(root):
             if not os.path.lexists(public_path):
                 os.symlink(private, public_path)
             elif not os.path.islink(public_path) or os.readlink(public_path) != private:
-                raise RuntimeError("unexpected Procursus path in bootstrap: " + public_path)
-        for name in ("ellekit_1.2_iphoneos-arm64.deb", "org.coolstar.sileo_2.5.1_iphoneos-arm64.deb"):
+                raise RuntimeError(
+                    "unexpected Procursus path in bootstrap: " + public_path
+                )
+        for name in (
+            "ellekit_1.2_iphoneos-arm64.deb",
+            "org.coolstar.sileo_2.5.1_iphoneos-arm64.deb",
+        ):
             stage = os.path.join(tmp, name)
             os.mkdir(stage)
-            data = subprocess.check_output([bsdtar, "-xOf", artifacts[name], "data.tar.xz"])
+            data = subprocess.check_output(
+                [bsdtar, "-xOf", artifacts[name], "data.tar.xz"]
+            )
             subprocess.run([bsdtar, "-xpf", "-", "-C", stage], input=data, check=True)
             payload = os.path.join(stage, "var/jb")
             if not os.path.isdir(payload):
@@ -130,7 +168,9 @@ def configure_rootless_ssh(root):
     jb = os.path.join(root, "private/var/jb")
     sshd = os.path.join(jb, "usr/sbin/sshd")
     if not os.path.isfile(sshd):
-        raise RuntimeError("SSH-enabled Procursus archive did not contain /usr/sbin/sshd")
+        raise RuntimeError(
+            "SSH-enabled Procursus archive did not contain /usr/sbin/sshd"
+        )
     keyfile = "/home/vsc/.ssh/id_ed25519.pub"
     with open(keyfile, encoding="utf-8") as f:
         fields = f.read().strip().split()
@@ -155,7 +195,10 @@ def configure_rootless_ssh(root):
             raise RuntimeError("ssh-keygen on the build host is required")
         with tempfile.TemporaryDirectory(prefix="sweet-ssh-key-") as tmp:
             temporary_key = os.path.join(tmp, "ssh_host_ed25519_key")
-            subprocess.run([keygen, "-q", "-t", "ed25519", "-N", "", "-f", temporary_key], check=True)
+            subprocess.run(
+                [keygen, "-q", "-t", "ed25519", "-N", "", "-f", temporary_key],
+                check=True,
+            )
             shutil.copyfile(temporary_key, host_key)
             shutil.copyfile(temporary_key + ".pub", host_key + ".pub")
     os.chown(host_key, 0, 0)
@@ -163,12 +206,20 @@ def configure_rootless_ssh(root):
     os.chown(host_key + ".pub", 0, 0)
     os.chmod(host_key + ".pub", 0o644)
     config = os.path.join(ssh_dir, "sshd_config")
-    settings = ["Port 22", "ListenAddress 192.168.7.2", "HostKey /var/jb/etc/ssh/ssh_host_ed25519_key",
-                "AuthorizedKeysFile /private/var/root/.ssh/authorized_keys", "PermitRootLogin prohibit-password",
-                "PubkeyAuthentication yes", "PasswordAuthentication no",
-                "KbdInteractiveAuthentication no", "UsePAM no", "UseDNS no",
-                "PidFile /private/var/run/sshd.pid",
-                "Subsystem sftp /var/jb/usr/libexec/sftp-server"]
+    settings = [
+        "Port 22",
+        "ListenAddress 192.168.7.2",
+        "HostKey /var/jb/etc/ssh/ssh_host_ed25519_key",
+        "AuthorizedKeysFile /private/var/root/.ssh/authorized_keys",
+        "PermitRootLogin prohibit-password",
+        "PubkeyAuthentication yes",
+        "PasswordAuthentication no",
+        "KbdInteractiveAuthentication no",
+        "UsePAM no",
+        "UseDNS no",
+        "PidFile /private/var/run/sshd.pid",
+        "Subsystem sftp /var/jb/usr/libexec/sftp-server",
+    ]
     with open(config, "w", encoding="utf-8") as f:
         f.write("\n".join(settings) + "\n")
     os.chown(config, 0, 0)
@@ -176,7 +227,10 @@ def configure_rootless_ssh(root):
 
     profile = os.path.join(jb, "etc/profile")
     path_line = 'PATH="/var/jb/usr/bin:/var/jb/bin:/var/jb/usr/sbin:/var/jb/sbin:$PATH"; export PATH'
-    old = open(profile, encoding="utf-8").read() if os.path.isfile(profile) else ""
+    old = ""
+    if os.path.isfile(profile):
+        with open(profile, encoding="utf-8") as f:
+            old = f.read()
     if path_line not in old:
         with open(profile, "a", encoding="utf-8") as f:
             f.write("\n" + path_line + "\n")
@@ -190,11 +244,20 @@ def configure_rootless_ssh(root):
         os.symlink(link, app)
     elif not os.path.islink(app) or os.readlink(app) != link:
         raise RuntimeError("refusing to overwrite existing Applications/Sileo.app")
-    daemon = {"Label": "org.procursus.sshd.usb",
-              "ProgramArguments": ["/var/jb/usr/sbin/sshd", "-D", "-e", "-f", "/var/jb/etc/ssh/sshd_config"],
-              "RunAtLoad": True, "KeepAlive": {"NetworkState": True},
-              "StandardOutPath": "/private/var/log/sweet-ssh.log",
-              "StandardErrorPath": "/private/var/log/sweet-ssh.log"}
+    daemon = {
+        "Label": "org.procursus.sshd.usb",
+        "ProgramArguments": [
+            "/var/jb/usr/sbin/sshd",
+            "-D",
+            "-e",
+            "-f",
+            "/var/jb/etc/ssh/sshd_config",
+        ],
+        "RunAtLoad": True,
+        "KeepAlive": {"NetworkState": True},
+        "StandardOutPath": "/private/var/log/sweet-ssh.log",
+        "StandardErrorPath": "/private/var/log/sweet-ssh.log",
+    }
     # iOS 16's launchd_unsecure_cache=1 can skip third-party plist discovery
     # under /Library/LaunchDaemons. Register the job in launchd's merged system
     # database instead; unlike a plist on disk this is consumed at boot.
@@ -204,7 +267,9 @@ def configure_rootless_ssh(root):
     jobs["/System/Library/LaunchDaemons/org.procursus.sshd.usb.plist"] = daemon
     st = os.stat(launchd_path)
     save(launchd_path, launchd_plist, st.st_uid, st.st_gid, st.st_mode & 0o7777)
-    print("rootless: Procursus, ElleKit, Sileo and USB key-only SSH registered in launchd")
+    print(
+        "rootless: Procursus, ElleKit, Sileo and USB key-only SSH registered in launchd"
+    )
 
 
 def load(path):
@@ -362,13 +427,22 @@ def audio(root):
                 bundle = load(info)
             except (OSError, plistlib.InvalidFileException):
                 continue
-            names = {bundle.get(key) for key in ("CFBundleExecutable", "CFBundleName", "CFBundleIdentifier")}
-            names.update(bundle.get("AudioComponents", [{}])[0].get(key) for key in ("name", "type") if bundle.get("AudioComponents"))
+            names = {
+                bundle.get(key)
+                for key in ("CFBundleExecutable", "CFBundleName", "CFBundleIdentifier")
+            }
+            names.update(
+                bundle.get("AudioComponents", [{}])[0].get(key)
+                for key in ("name", "type")
+                if bundle.get("AudioComponents")
+            )
             if not (names & tts_names):
                 continue
             disabled_root = component_root + ".disabled"
             os.makedirs(disabled_root, exist_ok=True)
-            target = os.path.join(disabled_root, os.path.relpath(current, component_root))
+            target = os.path.join(
+                disabled_root, os.path.relpath(current, component_root)
+            )
             os.makedirs(os.path.dirname(target), exist_ok=True)
             if not os.path.exists(target):
                 shutil.move(current, target)
@@ -452,12 +526,13 @@ def network(root):
     print("network: en0 DHCP service prepared (radio still requires wifi boot profile)")
 
 
-
 def managed_configuration(root):
     # profiled's own launchd KeepAlive PathState probes are signals; seed the
     # parent directory, not the marker files, so it can publish its XPC service
     # and decide whether work is outstanding itself.
-    profiles = os.path.join(root, "private/var/mobile/Library/UserConfigurationProfiles")
+    profiles = os.path.join(
+        root, "private/var/mobile/Library/UserConfigurationProfiles"
+    )
     if not os.path.isdir(profiles):
         os.makedirs(profiles, exist_ok=True)
         os.chown(profiles, MOBILE, MOBILE)
@@ -473,7 +548,9 @@ def posterboard_and_tcc(root):
         os.chmod(tcc, 0o700)
         print("mkdir", tcc)
 
-    angel_path = os.path.join(root, "System/Library/LaunchAngels/com.apple.PosterBoard.plist")
+    angel_path = os.path.join(
+        root, "System/Library/LaunchAngels/com.apple.PosterBoard.plist"
+    )
     ld_path = os.path.join(root, "System/Library/xpc/launchd.plist")
     if os.path.exists(angel_path) and os.path.exists(ld_path):
         st = os.stat(ld_path)
@@ -494,13 +571,22 @@ def posterboard_and_tcc(root):
         job["RunAtLoad"] = False
         job["Disabled"] = True
         job["KeepAlive"] = False
-        save(angel_path, job, os.stat(angel_path).st_uid, os.stat(angel_path).st_gid, os.stat(angel_path).st_mode & 0o7777)
+        save(
+            angel_path,
+            job,
+            os.stat(angel_path).st_uid,
+            os.stat(angel_path).st_gid,
+            os.stat(angel_path).st_mode & 0o7777,
+        )
         # Keep the registration disabled in the merged launchd database too.
         key = "/System/Library/LaunchDaemons/com.apple.PosterBoard.plist"
         job["MachServices"] = {"com.apple.posterboardservices.services": True}
         jobs[key] = job
         save(ld_path, plist, st.st_uid, st.st_gid, st.st_mode & 0o7777)
-        print(f"launchd.plist: disabled PosterBoard LaunchAngel and {changed} merged job(s) to stop Jetsam restart loop")
+        print(
+            f"launchd.plist: disabled PosterBoard LaunchAngel and {changed} merged job(s) to stop Jetsam restart loop"
+        )
+
 
 def main():
     if len(sys.argv) != 2 or not os.path.isdir(
