@@ -2,6 +2,9 @@ name: Joyeuse GPU Userland
 
 on:
   workflow_dispatch:
+  push:
+    paths:
+      - "gpu-userland/**"
 
 permissions:
   contents: read
@@ -23,7 +26,7 @@ jobs:
           set -euo pipefail
           XC=$(printf '%s\n' /Applications/Xcode_*.app | sort -V | tail -1)
           echo "DEVELOPER_DIR=$XC/Contents/Developer" >> "$GITHUB_ENV"
-          sudo xcode-select -s "$XC"
+          sudo xcode-select -s "$XC/Contents/Developer"
           xcodebuild -version
           xcrun --sdk iphoneos --show-sdk-version
           brew install llvm glslang bison flex ninja

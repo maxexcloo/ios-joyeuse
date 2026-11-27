@@ -18,20 +18,43 @@ iface=""
 
 echo "waiting for the phone's USB Ethernet (host MAC $mac)..." >&2
 echo "  (boot the phone now: tools/device.sh boot out/shim-boot.img)" >&2
+os=$(uname -s)
+find_iface() {
+	case $os in
+		Linux)
+			command -v ip >/dev/null || { echo "iproute2 (ip) is required on Linux" >&2; return 1; }
+			iface=$(ip -o link show | awk -v mac="$mac" 'tolower($0) ~ tolower(mac) {sub(/^[0-9]+: /, ""); sub(/@.*/, ""); sub(/:.*/, ""); print; exit}')
+			;;
+		*)
+			for i in $(ifconfig -l); do
+				if ifconfig "$i" 2>/dev/null | grep -qi "ether $mac"; then iface=$i; break; fi
+			done
+			;;
+	esac
+}
 for _ in $(seq 600); do
-	for i in $(ifconfig -l); do
-		if ifconfig "$i" 2>/dev/null | grep -qi "ether $mac"; then iface=$i; break; fi
-	done
+	find_iface
 	[ -n "$iface" ] && break
 	sleep 2
 done
 [ -n "$iface" ] || { echo "no interface with MAC $mac appeared" >&2; exit 1; }
 
 echo "phone on $iface; assigning 192.168.7.1/24 (needs sudo, once)" >&2
-if ! ifconfig "$iface" | grep -q "inet 192.168.7.1 "; then
-	sudo ifconfig "$iface" inet 192.168.7.1 netmask 255.255.255.0
-fi
-ifconfig "$iface" | grep -E "inet |ether " >&2
+case $os in
+	Linux)
+		if ! ip -4 -o addr show dev "$iface" | grep -q 'inet 192\.168\.7\.1/24 '; then
+			sudo ip addr replace 192.168.7.1/24 dev "$iface"
+		fi
+		ip -o link show dev "$iface" >&2
+		ip -4 -o addr show dev "$iface" >&2
+		;;
+	*)
+		if ! ifconfig "$iface" | grep -q "inet 192.168.7.1 "; then
+			sudo ifconfig "$iface" inet 192.168.7.1 netmask 255.255.255.0
+		fi
+		ifconfig "$iface" | grep -E "inet |ether " >&2
+		;;
+esac
 
 echo "listening on udp/5140 — Ctrl-C to stop" >&2
 # Do NOT use `nc -ukl 5140` here. macOS's nc binds the socket to the first

@@ -26,7 +26,14 @@ class RootVersion(unittest.TestCase):
             stack.enter_context(
                 mock.patch.object(root_tweaks.sys, "argv", ["tweaks", scratch])
             )
-            for name in ("launchd", "containers", "audio", "capabilities", "network"):
+            for name in (
+                "audio",
+                "capabilities",
+                "containers",
+                "install_rootless",
+                "launchd",
+                "network",
+            ):
                 stack.enter_context(mock.patch.object(root_tweaks, name))
             stack.enter_context(
                 mock.patch.object(

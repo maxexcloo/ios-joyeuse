@@ -1,0 +1,13 @@
+diff --git a/bsd/dev/sweet_sample.c b/bsd/dev/sweet_sample.c
+--- a/bsd/dev/sweet_sample.c
++++ b/bsd/dev/sweet_sample.c
+@@ -195,7 +195,7 @@
+ sweet_sample_thread(__unused void *arg, __unused wait_result_t wr)
+ {
+ 	static int chan;
+ 	if (!PE_parse_boot_argn("sweetsample", sweet_sample_names, sizeof(sweet_sample_names))) {
+-		strlcpy(sweet_sample_names, "SpringBoard,backboardd", sizeof(sweet_sample_names));
++		strlcpy(sweet_sample_names, "SpringBoard,backboardd,lsd,installd,profiled,biomed,donotdisturbd,powerlogHelperd", sizeof(sweet_sample_names));
+ 	}
+ 	if (sweet_sample_names[0] == '-') {
+ 		return;

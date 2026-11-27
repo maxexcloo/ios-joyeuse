@@ -208,6 +208,8 @@ def build(
         if len(address) != 6:
             raise ValueError("MAC input must contain exactly six raw bytes")
         chosen.props.append(("mac-address-" + name, 0, address))
+    if not qemu and (wifi_mac is not None or bluetooth_mac is not None):
+        chosen.props.append(("mac-address-ethernet0", 0, bytes.fromhex("02005e77ee02")))
 
     # SWEET SMP: all eight cores in physical-core order (0-5 Cortex-A55,
     # 6-7 Cortex-A76), one homogeneous cluster. The kernel defaults to one

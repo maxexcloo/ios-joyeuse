@@ -1,0 +1,26 @@
+--- a/bsd/dev/sweet_usb.c
++++ b/bsd/dev/sweet_usb.c
+@@ -101,6 +101,23 @@
+ 	printf("SWEET USB: DWC3 GEVNTADR 0x%08x%08x GEVNTSIZ 0x%08x GEVNTCOUNT 0x%08x GHWPARAMS0 0x%08x\n",
+ 	    usb_rd(dwc, 0xc404), usb_rd(dwc, 0xc400), usb_rd(dwc, 0xc408), usb_rd(dwc, 0xc40c),
+ 	    usb_rd(dwc, 0xc140));
++	/* sweetusb=2 requests the active gadget; also ungate its QUSB2 PHY AHB clock.
++	 * CBCR bit 0 is CLK_ENABLE and bit 31 reports the resulting branch state.
++	 * Do this only for the explicit device-mode request, not for diagnostics. */
++	if (enabled >= 2 && (cbcr[5] & CBCR_CLK_OFF)) {
++		volatile uint32_t *ahb2phy = (volatile uint32_t *)(gcc + usb_cbcr[5].off);
++		*ahb2phy = cbcr[5] | 1u;
++		__asm__ volatile ("dsb sy" ::: "memory");
++		for (unsigned i = 0; i < 1000; i++) {
++			cbcr[5] = usb_rd(gcc, usb_cbcr[5].off);
++			if (!(cbcr[5] & CBCR_CLK_OFF)) {
++				break;
++			}
++			delay(10);
++		}
++		printf("SWEET USB: ahb2phy requested on; CBCR 0x%08x (%s)\n", cbcr[5],
++		    (cbcr[5] & CBCR_CLK_OFF) ? "off" : "on");
++	}
+ 	if (enabled >= 2) {
+ 		sweet_usb_gadget_start(dwc);
+ 	}
